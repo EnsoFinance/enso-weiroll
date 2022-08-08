@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const weiroll = require("@weiroll/weiroll.js");
+const weiroll = require("@ensofinance/weiroll.js");
 
 const deploy = async (name) => (await ethers.getContractFactory(name)).deploy();
 
@@ -279,7 +279,7 @@ describe("VM", function () {
     const { commands, state } = planner.plan();
 
     await expect(vm.execute(commands, state)).to.be.revertedWith(
-      "Hello World!"
+      "ExecutionFailed"
     );
   });
 });
