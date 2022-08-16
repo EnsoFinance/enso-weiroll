@@ -110,8 +110,9 @@ abstract contract VM {
                             indices << 8 // skip value input
                         )
                         : state[
-                            uint8(bytes1(indices << 8)) &
-                                CommandBuilder.IDX_VALUE_MASK
+                            uint8(
+                                bytes1(indices << 8) // first byte after value input
+                            ) & CommandBuilder.IDX_VALUE_MASK
                         ]
                 );
             } else {
