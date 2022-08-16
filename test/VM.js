@@ -12,6 +12,10 @@ const deployContract = async (name) =>
 
 describe("VM", function () {
   const testString = "Hello, world!";
+  const hexTestString = ethers.utils.hexlify(
+    ethers.utils.toUtf8Bytes(testString)
+  );
+  const testEtherAmount = ethers.constants.WeiPerEther.div(2);
 
   let events,
     vm,
@@ -80,29 +84,33 @@ describe("VM", function () {
   });
 
   it("Should call fallback", async () => {
-    const commands = [[fallback, "", "0x2180ffffffffff", "0xff"]];
+    const commands = [[fallback, "", "0x2080ffffffffff", "0xff"]];
     const state = ["0x"];
 
     const tx = await execute(commands, state);
-    await expect(tx).to.not.emit(fallbackContract, "LogBytes");
+    await expect(tx).to.not.emit(
+      fallbackContract.attach(vm.address),
+      "LogBytes"
+    );
 
     const receipt = await tx.wait();
     console.log(`fallback: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should call fallback with overriden msg.data and msg.value", async () => {
-    const msgValue = ethers.constants.WeiPerEther;
-    const msgData = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(testString));
-
     const commands = [[fallback, "", "0x230081ffffffff", "0xff"]];
     const state = [
-      ethers.utils.hexZeroPad(msgValue.toHexString(), "32"),
-      msgData,
+      ethers.utils.hexZeroPad(testEtherAmount.toHexString(), "32"),
+      hexTestString,
     ];
 
-    const tx = await execute(commands, state, { value: msgValue });
-    await expect(tx).to.emit(fallbackContract, "LogUint").withArgs(msgValue);
-    await expect(tx).to.emit(fallbackContract, "LogBytes").withArgs(msgData);
+    const tx = await execute(commands, state, { value: testEtherAmount });
+    await expect(tx)
+      .to.emit(fallbackContract, "LogUint")
+      .withArgs(testEtherAmount);
+    await expect(tx)
+      .to.emit(fallbackContract, "LogBytes")
+      .withArgs(hexTestString);
 
     const receipt = await tx.wait();
     console.log(
@@ -110,19 +118,141 @@ describe("VM", function () {
     );
   });
 
-  it("Should call function named fallback with msg.value", async () => {
+  it("Should override msg.data to call a function", async () => {
+    const encodedFunctionCall = events.interface.encodeFunctionData(
+      "logString",
+      [testString]
+    );
+
+    const commands = [[events, "", "0x2080ffffffffff", "0xff"]];
+    const state = [encodedFunctionCall];
+
+    const tx = await execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .withArgs(testString);
+
+    const receipt = await tx.wait();
+    console.log(
+      `events (override msg.data to call other function): ${receipt.gasUsed.toNumber()} gas`
+    );
+  });
+
+  it("Should override msg.data to call a function (js lib)", async () => {
+    const encodedFunctionCall = events.interface.encodeFunctionData(
+      "fallback",
+      [hexTestString]
+    );
+
     const planner = new weiroll.Planner();
-
-    const msgValue = ethers.constants.WeiPerEther;
-    const data = ethers.utils.hexlify(ethers.utils.toUtf8Bytes(testString));
-
-    planner.add(fallback.fallback(data).withValue(msgValue));
-
+    planner.add(
+      fallback[""](encodedFunctionCall).withValue(testEtherAmount.sub(10))
+    );
     const { commands, state } = planner.plan();
 
-    const tx = await vm.execute(commands, state, { value: msgValue });
-    await expect(tx).to.emit(fallbackContract, "LogUint").withArgs(msgValue);
-    await expect(tx).to.emit(fallbackContract, "LogBytes").withArgs(data);
+    const tx = await vm.execute(commands, state, { value: testEtherAmount });
+    await expect(tx)
+      .to.emit(fallbackContract, "LogUint")
+      .withArgs(testEtherAmount.sub(10));
+    await expect(tx)
+      .to.emit(fallbackContract, "LogBytes")
+      .withArgs(hexTestString);
+
+    const receipt = await tx.wait();
+    console.log(
+      `fallback (override msg.data to call other function - js lib): ${receipt.gasUsed.toNumber()} gas`
+    );
+  });
+
+  it("Should call fallback statically and forward return data", async () => {
+    const msgData = planner.add(fallback[""]().staticcall());
+
+    const planner = new weiroll.Planner();
+    planner.add(
+      weiroll.Contract.createContract(eventsContract)
+        [""](msgData)
+        .withValue(testEtherAmount)
+    );
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state, { value: testEtherAmount });
+    await expect(tx)
+      .to.emit(eventsContract, "LogUint")
+      .withArgs(testEtherAmount);
+    await expect(tx)
+      .to.emit(eventsContract, "LogBytes")
+      .withArgs(
+        ethers.utils.defaultAbiCoder.encode(
+          ["bytes32", "bytes32"],
+          [
+            ethers.utils.hexZeroPad(8, 32),
+            ethers.utils.formatBytes32String("fallback"),
+          ]
+        )
+      );
+
+    const receipt = await tx.wait();
+    console.log(`fallback (staticcall): ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should call fallback with overriden msg.data & msg.value and forward return data to another fallback", async () => {
+    const planner = new weiroll.Planner();
+
+    const msgData = planner.add(
+      fallback[""](hexTestString).withValue(testEtherAmount.sub(10))
+    );
+    planner.add(
+      weiroll.Contract.createContract(eventsContract)[""](msgData).withValue(10)
+    );
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state, { value: testEtherAmount });
+    await expect(tx)
+      .to.emit(fallbackContract, "LogUint")
+      .withArgs(testEtherAmount.sub(10));
+    await expect(tx)
+      .to.emit(fallbackContract, "LogBytes")
+      .withArgs(hexTestString);
+    await expect(tx).to.emit(eventsContract, "LogUint").withArgs(10);
+    await expect(tx)
+      .to.emit(eventsContract, "LogBytes")
+      .withArgs(
+        ethers.utils.defaultAbiCoder.encode(
+          ["bytes32", "bytes32"],
+          [
+            ethers.utils.hexZeroPad(8, 32),
+            ethers.utils.formatBytes32String("fallback"),
+          ]
+        )
+      );
+
+    const receipt = await tx.wait();
+    console.log(
+      `fallback (forward return data): ${receipt.gasUsed.toNumber()} gas`
+    );
+  });
+
+  it("Should call fallback with overriden msg.data & msg.value and forward return data to function *named* fallback", async () => {
+    const planner = new weiroll.Planner();
+
+    const msgData = planner.add(
+      fallback[""](hexTestString).withValue(testEtherAmount)
+    );
+    planner.add(
+      weiroll.Contract.createContract(eventsContract).fallback(msgData)
+    );
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state, { value: testEtherAmount });
+    await expect(tx)
+      .to.emit(fallbackContract, "LogUint")
+      .withArgs(testEtherAmount);
+    await expect(tx)
+      .to.emit(fallbackContract, "LogBytes")
+      .withArgs(hexTestString);
+    await expect(tx)
+      .to.emit(eventsContract, "LogBytes")
+      .withArgs(ethers.utils.hexlify(ethers.utils.toUtf8Bytes("fallback")));
 
     const receipt = await tx.wait();
     console.log(`fallback (named function): ${receipt.gasUsed.toNumber()} gas`);

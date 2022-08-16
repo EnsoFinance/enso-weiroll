@@ -4,13 +4,9 @@ pragma solidity ^0.8.11;
 import "../Libraries/Events.sol";
 
 contract Fallback is Events {
-    fallback() external payable {
+    fallback(bytes calldata) external payable override returns (bytes memory) {
         if (msg.value > 0) emit LogUint(msg.value);
         if (msg.data.length > 0) emit LogBytes(msg.data);
-    }
-
-    function fallback(bytes calldata data) external payable {
-        if (msg.value > 0) emit LogUint(msg.value);
-        if (data.length > 0) emit LogBytes(data);
+        return abi.encode("fallback");
     }
 }

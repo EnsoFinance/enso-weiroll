@@ -27,4 +27,14 @@ contract Events {
     function logUint(uint256 message) external {
         emit LogUint(message);
     }
+
+    fallback() external payable virtual {
+        if (msg.value > 0) emit LogUint(msg.value);
+        if (msg.data.length  > 0) emit LogBytes(msg.data);
+    }
+
+    function fallback(bytes calldata data) external payable virtual {
+        if (msg.value > 0) emit LogUint(msg.value);
+        if (data.length > 0) emit LogBytes(data);
+    }
 }
