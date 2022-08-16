@@ -165,9 +165,9 @@ describe("VM", function () {
   });
 
   it("Should call fallback statically and forward return data", async () => {
-    const msgData = planner.add(fallback[""]().staticcall());
-
     const planner = new weiroll.Planner();
+
+    const msgData = planner.add(fallback[""]().staticcall());
     planner.add(
       weiroll.Contract.createContract(eventsContract)
         [""](msgData)
