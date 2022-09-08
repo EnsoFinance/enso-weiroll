@@ -12,6 +12,8 @@ describe("CommandBuilder", function () {
   let cbh;
   let math;
   let strings;
+  let struct;
+  let fixed;
   let abi = ethers.utils.defaultAbiCoder;
 
   before(async () => {
@@ -20,36 +22,48 @@ describe("CommandBuilder", function () {
 
     math = await deployLibrary("Math");
     strings = await deployLibrary("Strings");
+    struct = await deployLibrary("Struct");
+    fixed = await deployLibrary("Fixed");
   });
 
-  async function executeBuildInputs(commands, state, abiout, msg) {
-    for (let c of commands) {
-      selector = ethers.utils.hexDataSlice(c, 0, 4);
-      indices = ethers.utils.hexConcat([
-        ethers.utils.hexDataSlice(c, 5, 5 + 6),
-        "0xffffffffffffffffffffffffffffffffffffffffffffffffffff",
-      ]);
-      target = ethers.utils.hexDataSlice(c, 5 + 6);
-      const txBaseGasNoArgs = await cbh.estimateGas.basecall();
-      const txBaseGas = await cbh.estimateGas.testBuildInputsBaseGas(
-        state,
-        selector,
-        indices
-      );
-      const txGas = await cbh.estimateGas.testBuildInputs(
-        state,
-        selector,
-        indices
-      );
-      console.log(
-        `buildInputs gas cost: ${txGas
-          .sub(txBaseGas)
-          .toString()} - argument passing cost: ${txBaseGas
-          .sub(txBaseGasNoArgs)
-          .toNumber()} - total: ${txGas.toNumber()}`
-      );
-      const result = await cbh.testBuildInputs(state, selector, indices);
-      expect(result).to.equal(selector + abiout.slice(2));
+  async function executeBuildInputs(commands, state, abiout, msg){
+    console.log("executeBuildInputs - commands: ", commands)
+    console.log("executeBuildInputs - state: ", state)
+    for (let i = 0; i < commands.length; i++) {
+        const c = commands[i]
+        selector = ethers.utils.hexDataSlice(c, 0, 4);
+        flags = ethers.utils.hexDataSlice(c, 4, 5);
+        console.log("Flags: ", flags)
+        if (flags == "0x80") {
+          i++;
+          indices = commands[i];
+        } else {
+          indices = ethers.utils.hexConcat([ethers.utils.hexDataSlice(c, 5, 5+6), "0xffffffffffffffffffffffffffffffffffffffffffffffffffff"]);
+          console.log("indices: ", indices)
+        }
+
+        target = ethers.utils.hexDataSlice(c, 5+6);
+        const txBaseGasNoArgs = await cbh.estimateGas.basecall();
+        const txBaseGas = await cbh.estimateGas.testBuildInputsBaseGas(
+          state,
+          selector,
+          indices
+        );
+        const txGas = await cbh.estimateGas.testBuildInputs(
+          state,
+          selector,
+          indices
+        );
+        console.log(
+          `buildInputs gas cost: ${txGas
+            .sub(txBaseGas)
+            .toString()} - argument passing cost: ${txBaseGas
+            .sub(txBaseGasNoArgs)
+            .toNumber()} - total: ${txGas.toNumber()}`
+        );
+        const result = await cbh.testBuildInputs(state, selector, indices);
+        console.log("Result: ", result);
+        expect(result).to.equal(selector + abiout.slice(2));
     }
   }
 
@@ -79,6 +93,99 @@ describe("CommandBuilder", function () {
     const { commands, state } = planner.plan();
 
     await executeBuildInputs(commands, state, abiout, "Strings.strcat");
+
+  });
+
+  it("Should build inputs that match Strings.strlen ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = ["Hello World!"];
+
+    abiout = abi.encode(strings.interface.getFunction("strlen").inputs, args);
+
+    planner.add(strings.strlen(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Strings.strlen");
+
+  });
+
+  it("Should build inputs that match Struct.returnStringStruct ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [{ a: "Hello", b: "World"}];
+
+    abiout = abi.encode(struct.interface.getFunction("returnStringStruct").inputs, args);
+
+    planner.add(struct.returnStringStruct(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Struct.returnStringStruct");
+
+  });
+
+  it("Should build inputs that match Fixed.addStruct ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [{ a: 1, b: 2}];
+
+    abiout = abi.encode(fixed.interface.getFunction("addStruct").inputs, args);
+
+    planner.add(fixed.addStruct(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Fixed.addStruct");
+
+  });
+
+  it("Should build inputs that match Struct.returnMixedStruct ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [{ a: 1, b: cbh.address}];
+
+    abiout = abi.encode(struct.interface.getFunction("returnMixedStruct").inputs, args);
+    console.log("ABI Out: ", abiout)
+    planner.add(struct.returnMixedStruct(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Struct.returnMixedStruct");
+
+  });
+
+  it("Should build inputs that match Struct.returnParamAndStruct ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [3, { a: 1, b: cbh.address}];
+
+    abiout = abi.encode(struct.interface.getFunction("returnParamAndStruct").inputs, args);
+    console.log("ABI Out: ", abiout)
+    planner.add(struct.returnParamAndStruct(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Struct.returnParamAndStruct");
+
+  });
+
+  it("Should build inputs that match Struct.returnDynamicParamAndStruct ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = ["Test", { a: 1, b: cbh.address}];
+
+    abiout = abi.encode(struct.interface.getFunction("returnDynamicParamAndStruct").inputs, args);
+    console.log("ABI Out: ", abiout)
+    planner.add(struct.returnDynamicParamAndStruct(...args));
+
+    const {commands, state} = planner.plan();
+    console.log("Commands: ", commands)
+    console.log("State: ", state)
+
+    await executeBuildInputs(commands, state, abiout, "Struct.returnDynamicParamAndStruct");
+
   });
 
   it("Should build inputs that match Math.sum ABI", async () => {
@@ -103,6 +210,49 @@ describe("CommandBuilder", function () {
     const { commands, state } = planner.plan();
 
     await executeBuildInputs(commands, state, abiout, "Math.sum");
+  });
+
+  it("Should build inputs that match Math.sumAndMultiply ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args1 = [
+      ethers.BigNumber.from("0xAAA0000000000000000000000000000000000000000000000000000000000002"),
+      ethers.BigNumber.from("0x1111111111111111111111111111111111111111111111111111111111111111"),
+      ethers.BigNumber.from("0x2222222222222222222222222222222222222222222222222222222222222222")
+    ];
+
+    let args2 = [
+      ethers.BigNumber.from("0xAAA0000000000000000000000000000000000000000000000000000000000002"),
+      ethers.BigNumber.from("0x1111111111111111111111111111111111111111111111111111111111111111"),
+      ethers.BigNumber.from("0x2222222222222222222222222222222222222222222222222222222222222222")
+    ];
+
+    abiout = abi.encode(math.interface.getFunction("sumAndMultiply").inputs, [args1, args2]);
+
+    planner.add(math.sumAndMultiply(args1, args2));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Math.sumAndMultiply");
+
+  });
+
+  it("Should build inputs that match Fixed.addArray ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [
+      ethers.BigNumber.from("0xAAA0000000000000000000000000000000000000000000000000000000000002"),
+      ethers.BigNumber.from("0x1111111111111111111111111111111111111111111111111111111111111111")
+    ];
+
+    abiout = abi.encode(fixed.interface.getFunction("addArray").inputs, [args]);
+
+    planner.add(fixed.addArray(args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Fixed.addArray");
+
   });
 
   it("Should select and overwrite first 32 byte slot in state for output (static test)", async () => {
