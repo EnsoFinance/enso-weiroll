@@ -12,9 +12,9 @@ abstract contract VM {
     uint256 constant FLAG_CT_STATICCALL = 0x02;
     uint256 constant FLAG_CT_VALUECALL = 0x03;
     uint256 constant FLAG_CT_MASK = 0x03;
-    uint256 constant FLAG_TUPLE_RETURN = 0x80;
-    uint256 constant FLAG_EXTENDED_COMMAND = 0x40;
     uint256 constant FLAG_DATA = 0x20;
+    uint256 constant FLAG_EXTENDED_COMMAND = 0x40;
+    uint256 constant FLAG_TUPLE_RETURN = 0x80;
 
     uint256 constant SHORT_COMMAND_FILL =
         0x000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
@@ -58,8 +58,9 @@ abstract contract VM {
                                 indices
                             )
                             : state[
-                                uint8(bytes1(indices)) &
-                                    CommandBuilder.IDX_VALUE_MASK
+                                uint8(
+                                    bytes1(indices << 8) // first byte after offset input
+                                ) & CommandBuilder.IDX_VALUE_MASK
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_CALL) {
@@ -71,8 +72,9 @@ abstract contract VM {
                             indices
                         )
                         : state[
-                            uint8(bytes1(indices)) &
-                                CommandBuilder.IDX_VALUE_MASK
+                            uint8(
+                                bytes1(indices << 8) // first byte after offset input
+                            ) & CommandBuilder.IDX_VALUE_MASK
                         ]
                 );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_STATICCALL) {
@@ -85,8 +87,9 @@ abstract contract VM {
                                 indices
                             )
                             : state[
-                                uint8(bytes1(indices)) &
-                                    CommandBuilder.IDX_VALUE_MASK
+                                uint8(
+                                    bytes1(indices << 8) // first byte after offset input
+                                ) & CommandBuilder.IDX_VALUE_MASK
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
@@ -106,7 +109,7 @@ abstract contract VM {
                         )
                         : state[
                             uint8(
-                                bytes1(indices << 8) // first byte after value input
+                                bytes1(indices << 16) // first byte after value and offset input
                             ) & CommandBuilder.IDX_VALUE_MASK
                         ]
                 );

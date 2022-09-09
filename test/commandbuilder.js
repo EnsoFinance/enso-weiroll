@@ -14,6 +14,7 @@ describe("CommandBuilder", function () {
   let strings;
   let struct;
   let fixed;
+  let arrays;
   let abi = ethers.utils.defaultAbiCoder;
 
   before(async () => {
@@ -24,22 +25,19 @@ describe("CommandBuilder", function () {
     strings = await deployLibrary("Strings");
     struct = await deployLibrary("Struct");
     fixed = await deployLibrary("Fixed");
+    arrays = await deployLibrary("Arrays");
   });
 
   async function executeBuildInputs(commands, state, abiout, msg){
-    console.log("executeBuildInputs - commands: ", commands)
-    console.log("executeBuildInputs - state: ", state)
     for (let i = 0; i < commands.length; i++) {
         const c = commands[i]
         selector = ethers.utils.hexDataSlice(c, 0, 4);
         flags = ethers.utils.hexDataSlice(c, 4, 5);
-        console.log("Flags: ", flags)
-        if (flags == "0x80") {
+        if (flags == "0x40") {
           i++;
           indices = commands[i];
         } else {
           indices = ethers.utils.hexConcat([ethers.utils.hexDataSlice(c, 5, 5+6), "0xffffffffffffffffffffffffffffffffffffffffffffffffffff"]);
-          console.log("indices: ", indices)
         }
 
         target = ethers.utils.hexDataSlice(c, 5+6);
@@ -62,7 +60,6 @@ describe("CommandBuilder", function () {
             .toNumber()} - total: ${txGas.toNumber()}`
         );
         const result = await cbh.testBuildInputs(state, selector, indices);
-        console.log("Result: ", result);
         expect(result).to.equal(selector + abiout.slice(2));
     }
   }
@@ -147,7 +144,7 @@ describe("CommandBuilder", function () {
     let args = [{ a: 1, b: cbh.address}];
 
     abiout = abi.encode(struct.interface.getFunction("returnMixedStruct").inputs, args);
-    console.log("ABI Out: ", abiout)
+
     planner.add(struct.returnMixedStruct(...args));
 
     const {commands, state} = planner.plan();
@@ -162,7 +159,7 @@ describe("CommandBuilder", function () {
     let args = [3, { a: 1, b: cbh.address}];
 
     abiout = abi.encode(struct.interface.getFunction("returnParamAndStruct").inputs, args);
-    console.log("ABI Out: ", abiout)
+
     planner.add(struct.returnParamAndStruct(...args));
 
     const {commands, state} = planner.plan();
@@ -177,12 +174,10 @@ describe("CommandBuilder", function () {
     let args = ["Test", { a: 1, b: cbh.address}];
 
     abiout = abi.encode(struct.interface.getFunction("returnDynamicParamAndStruct").inputs, args);
-    console.log("ABI Out: ", abiout)
+
     planner.add(struct.returnDynamicParamAndStruct(...args));
 
     const {commands, state} = planner.plan();
-    console.log("Commands: ", commands)
-    console.log("State: ", state)
 
     await executeBuildInputs(commands, state, abiout, "Struct.returnDynamicParamAndStruct");
 
@@ -212,7 +207,7 @@ describe("CommandBuilder", function () {
     await executeBuildInputs(commands, state, abiout, "Math.sum");
   });
 
-  it("Should build inputs that match Math.sumAndMultiply ABI", async () => {
+  it("Should build inputs that match Arrays.sumAndMultiply ABI", async () => {
     const planner = new weiroll.Planner();
 
     let args1 = [
@@ -227,9 +222,9 @@ describe("CommandBuilder", function () {
       ethers.BigNumber.from("0x2222222222222222222222222222222222222222222222222222222222222222")
     ];
 
-    abiout = abi.encode(math.interface.getFunction("sumAndMultiply").inputs, [args1, args2]);
+    abiout = abi.encode(arrays.interface.getFunction("sumAndMultiply").inputs, [args1, args2]);
 
-    planner.add(math.sumAndMultiply(args1, args2));
+    planner.add(arrays.sumAndMultiply(args1, args2));
 
     const {commands, state} = planner.plan();
 

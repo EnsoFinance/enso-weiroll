@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-import "hardhat/console.sol";
 
 pragma solidity ^0.8.16;
 
@@ -8,27 +7,33 @@ library CommandBuilder {
     uint256 constant IDX_VALUE_MASK = 0x7f;
     uint256 constant IDX_END_OF_ARGS = 0xff;
     uint256 constant IDX_USE_STATE = 0xfe;
-    uint256 constant IDX_POINTER = 0xfd;
+    uint256 constant IDX_NO_OFFSET = 0xfd;
+    uint256 constant IDX_POINTER = 0xfc;
 
     function buildInputs(
         bytes[] memory state,
         bytes4 selector,
         bytes32 indices
     ) internal view returns (bytes memory ret) {
-        uint256 idx;
-        uint256 indicesLength;
-
         uint256 count; // Number of bytes in whole ABI encoded message
         uint256 free; // Pointer to first free byte in tail part of message
+        uint256[] memory offsets; // Pointers for dynamic types
         bytes memory stateData; // Optionally encode the current state if the call requires it
 
-        // Offets total stored in first index
-        uint256 offsetsCount;
-        uint256 offsetsLength = abi.decode(state[uint8(indices[0]) & IDX_VALUE_MASK], (uint256));
-        uint256[] memory offsets = new uint256[](offsetsLength);
+        uint256 offsetsCount; // Keep track of the index for each offset
+        uint256 offsetsLength; // Number of offsets
+        uint256 indicesLength; // Number of indices
+
+        uint256 idx = uint8(indices[0]);
+        if (idx != IDX_NO_OFFSET) {
+          offsetsLength = abi.decode(state[idx & IDX_VALUE_MASK], (uint256));
+          if (offsetsLength > 0) {
+            offsets = new uint256[](offsetsLength);
+          }
+        }
 
         // Determine the length of the encoded data
-        for (uint256 i = 1; i < 32; ) {
+        for (uint256 i = 1; i < 32; ) { // i starts at 1 because the first index is reserved for the offset data
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) {
                 indicesLength = i;
@@ -47,10 +52,8 @@ library CommandBuilder {
                     if (offsetsCount == 0) {
                         offsets[offsetsCount++] = offsetsLength * 32;
                     } else {
-                        console.log("Set offset: ", free);
                         offsets[offsetsCount++] = free - offsets[offsetsCount - 1];
                     }
-                    //free += 32;
                     count += 32;
                 } else {
                     // Add the size of the value, rounded up to the next word boundary, plus space for pointer and length
@@ -87,7 +90,6 @@ library CommandBuilder {
         count = 0;
         for (uint256 i; i < offsetsLength; ) {
             uint256 offset = offsets[i];
-            console.log("Store offset");
             assembly {
                 mstore(add(add(ret, 36), count), offset)
             }
@@ -96,7 +98,7 @@ library CommandBuilder {
                 ++i;
             }
         }
-        for (uint256 i = 1; i < indicesLength; ) {
+        for (uint256 i = 1; i < indicesLength; ) { // i starts at 1 because the first index is reserved for the offset data
             idx = uint8(indices[i]);
             if (idx & IDX_VARIABLE_LENGTH != 0) {
                 if (idx == IDX_USE_STATE) {
@@ -108,10 +110,7 @@ library CommandBuilder {
                     unchecked {
                         count += 32;
                     }
-                } else if (idx == IDX_POINTER) {
-                    console.log("skipping pointer");
-                } else {
-                    console.log("variable: ", free);
+                } else if (idx != IDX_POINTER) {
                     uint256 argLen = state[idx & IDX_VALUE_MASK].length;
                     uint256 offset = offsetsLength > 0 ? offsets[0] : 0;
 
@@ -133,9 +132,7 @@ library CommandBuilder {
                 }
             } else {
                 // Fixed length data; write it directly
-                console.log("static: ", free);
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
-                console.log("stateVar: ", idx & IDX_VALUE_MASK);
                 assembly {
                     mstore(add(add(ret, 36), count), mload(add(stateVar, 32)))
                 }
