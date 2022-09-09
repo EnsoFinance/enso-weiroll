@@ -21,6 +21,7 @@ describe("VM", function () {
     vm,
     math,
     strings,
+    struct,
     stateTest,
     sender,
     revert,
@@ -33,6 +34,7 @@ describe("VM", function () {
   before(async () => {
     math = await deployLibrary("Math");
     strings = await deployLibrary("Strings");
+    struct = await deployLibrary("Struct");
     sender = await deployLibrary("Sender");
     revert = await deployLibrary("Revert");
     payable = await deployContract("Payable");
@@ -84,7 +86,7 @@ describe("VM", function () {
   });
 
   it("Should call fallback", async () => {
-    const commands = [[fallback, "", "0x2080ffffffffff", "0xff"]];
+    const commands = [[fallback, "", "0x20fd80ffffffff", "0xff"]];
     const state = ["0x"];
 
     const tx = await execute(commands, state);
@@ -98,7 +100,7 @@ describe("VM", function () {
   });
 
   it("Should call fallback with overriden msg.data and msg.value", async () => {
-    const commands = [[fallback, "", "0x230081ffffffff", "0xff"]];
+    const commands = [[fallback, "", "0x2300fd81ffffff", "0xff"]];
     const state = [
       ethers.utils.hexZeroPad(testEtherAmount.toHexString(), "32"),
       hexTestString,
@@ -124,7 +126,7 @@ describe("VM", function () {
       [testString]
     );
 
-    const commands = [[events, "", "0x2080ffffffffff", "0xff"]];
+    const commands = [[events, "", "0x20fd80ffffffff", "0xff"]];
     const state = [encodedFunctionCall];
 
     const tx = await execute(commands, state);
@@ -345,10 +347,31 @@ describe("VM", function () {
     console.log(`Payable: ${receipt.gasUsed.toNumber()} gas`);
   });
 
+  it("Should pass return value to dynamic tuple", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnDynamicParamAndStruct("Test", { a: result, b: token.address}));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .withArgs("Test");
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(3);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogAddress")
+      .withArgs(token.address);
+
+    const receipt = await tx.wait();
+    console.log(`dynamic param and struct: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
   it("Should pass and return raw state to functions", async () => {
     const commands = [
-      [stateTest, "addSlots", "0x00000102feffff", "0xfe"],
-      [events, "logUint", "0x0000ffffffffff", "0xff"],
+      [stateTest, "addSlots", "0x00fd000102feff", "0xfe"],
+      [events, "logUint", "0x00fd00ffffffff", "0xff"],
     ];
     const state = [
       // dest slot index
@@ -385,7 +408,7 @@ describe("VM", function () {
       .to.emit(token, "Transfer")
       .withArgs(to, vm.address, amount.mul(3));
 
-    const commands = [[token, "transfer", "0x010001ffffffff", "0xff"]];
+    const commands = [[token, "transfer", "0x01fd0001ffffff", "0xff"]];
     const state = [
       // dest slot index
       "0x000000000000000000000000" + to.slice(2),

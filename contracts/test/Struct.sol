@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-contract Struct {
+import "../Libraries/Events.sol";
+
+contract Struct is Events {
     struct StringStruct {
       string a;
       string b;
@@ -39,9 +41,11 @@ contract Struct {
 
     function returnDynamicParamAndStruct(string memory param, MixedStruct memory values)
         external
-        pure
         returns (string memory, uint256, address)
     {
+        emit LogString(param);
+        emit LogUint(values.a);
+        emit LogAddress(values.b);
         return (param, values.a, values.b);
     }
 }
