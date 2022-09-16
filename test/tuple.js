@@ -28,9 +28,9 @@ describe("Tuple", function () {
 
   it("Should perform a tuple return that's sliced before being fed to another function (first var)", async () => {
     const commands = [
-      [multiReturn, "intTuple", "0x80fdffffffffff", "0x00"],
-      [tupler, "extractElement", "0x00fd8001ffffff", "0x00"],
-      [multiReturn, "tupleConsumer", "0x00fd00ffffffff", "0xff"]
+      [multiReturn, "intTuple", "0x80ffffffffffff", "0x00"],
+      [tupler, "extractElement", "0x008001ffffffff", "0x00"],
+      [multiReturn, "tupleConsumer", "0x0000ffffffffff", "0xff"]
     ];
 
     const state = [
@@ -50,9 +50,9 @@ describe("Tuple", function () {
 
   it("Should perform a tuple return that's sliced before being fed to another function (second var)", async () => {
     const commands = [
-      [multiReturn, "intTuple", "0x80fdffffffffff", "0x00"],
-      [tupler, "extractElement","0x00fd8001ffffff", "0x00"],
-      [multiReturn, "tupleConsumer", "0x00fd00ffffffff", "0xff"]
+      [multiReturn, "intTuple", "0x80ffffffffffff", "0x00"],
+      [tupler, "extractElement","0x008001ffffffff", "0x00"],
+      [multiReturn, "tupleConsumer", "0x0000ffffffffff", "0xff"]
     ];
 
     const state = [

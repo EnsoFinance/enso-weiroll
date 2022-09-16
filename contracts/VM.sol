@@ -59,7 +59,7 @@ abstract contract VM {
                             )
                             : state[
                                 uint8(
-                                    bytes1(indices << 8) // first byte after offset input
+                                    bytes1(indices)
                                 ) & CommandBuilder.IDX_VALUE_MASK
                             ]
                     );
@@ -73,7 +73,7 @@ abstract contract VM {
                         )
                         : state[
                             uint8(
-                                bytes1(indices << 8) // first byte after offset input
+                                bytes1(indices)
                             ) & CommandBuilder.IDX_VALUE_MASK
                         ]
                 );
@@ -88,7 +88,7 @@ abstract contract VM {
                             )
                             : state[
                                 uint8(
-                                    bytes1(indices << 8) // first byte after offset input
+                                    bytes1(indices)
                                 ) & CommandBuilder.IDX_VALUE_MASK
                             ]
                     );
@@ -109,7 +109,7 @@ abstract contract VM {
                         )
                         : state[
                             uint8(
-                                bytes1(indices << 16) // first byte after value and offset input
+                                bytes1(indices << 8) // first byte after value input
                             ) & CommandBuilder.IDX_VALUE_MASK
                         ]
                 );
