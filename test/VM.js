@@ -86,7 +86,7 @@ describe("VM", function () {
   });
 
   it("Should call fallback", async () => {
-    const commands = [[fallback, "", "0x20fd80ffffffff", "0xff"]];
+    const commands = [[fallback, "", "0x2080ffffffffff", "0xff"]];
     const state = ["0x"];
 
     const tx = await execute(commands, state);
@@ -100,7 +100,7 @@ describe("VM", function () {
   });
 
   it("Should call fallback with overriden msg.data and msg.value", async () => {
-    const commands = [[fallback, "", "0x2300fd81ffffff", "0xff"]];
+    const commands = [[fallback, "", "0x230081ffffffff", "0xff"]];
     const state = [
       ethers.utils.hexZeroPad(testEtherAmount.toHexString(), "32"),
       hexTestString,
@@ -126,7 +126,7 @@ describe("VM", function () {
       [testString]
     );
 
-    const commands = [[events, "", "0x20fd80ffffffff", "0xff"]];
+    const commands = [[events, "", "0x2080ffffffffff", "0xff"]];
     const state = [encodedFunctionCall];
 
     const tx = await execute(commands, state);
@@ -370,8 +370,8 @@ describe("VM", function () {
 
   it("Should pass and return raw state to functions", async () => {
     const commands = [
-      [stateTest, "addSlots", "0x00fd000102feff", "0xfe"],
-      [events, "logUint", "0x00fd00ffffffff", "0xff"],
+      [stateTest, "addSlots", "0x00000102feffff", "0xfe"],
+      [events, "logUint", "0x0000ffffffffff", "0xff"],
     ];
     const state = [
       // dest slot index
@@ -408,7 +408,7 @@ describe("VM", function () {
       .to.emit(token, "Transfer")
       .withArgs(to, vm.address, amount.mul(3));
 
-    const commands = [[token, "transfer", "0x01fd0001ffffff", "0xff"]];
+    const commands = [[token, "transfer", "0x010001ffffffff", "0xff"]];
     const state = [
       // dest slot index
       "0x000000000000000000000000" + to.slice(2),

@@ -123,6 +123,38 @@ describe("CommandBuilder", function () {
 
   });
 
+  it("Should build inputs that match Struct.returnComplexStruct ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [
+      {
+        id: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada",
+        category: 1,
+        from: "0x1212121212121212121212121212121212121212",
+        to: "0x1313131313131313131313131313131313131313",
+        amount: 1000,
+        data: "0xbebebebe"
+      },
+      {
+        from: "0x1414141414141414141414141414141414141414",
+        approvedFrom: false,
+        to: "0x1515151515151515151515151515151515151515",
+        approvedTo: false
+      },
+      0,
+      ethers.constants.MaxUint256
+    ];
+
+    abiout = abi.encode(struct.interface.getFunction("returnComplexStruct").inputs, args);
+
+    planner.add(struct.returnComplexStruct(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Struct.returnComplexStruct");
+
+  });
+
   it("Should build inputs that match Fixed.addStruct ABI", async () => {
     const planner = new weiroll.Planner();
 

@@ -14,6 +14,22 @@ contract Struct is Events {
       address b;
     }
 
+    struct DataStruct {
+      bytes32 id;
+      uint256 category;
+      address from;
+      address to;
+      uint256 amount;
+      bytes data;
+    }
+
+    struct UserStruct {
+      address from;
+      bool approvedTo;
+      address to;
+      bool approvedFrom;
+    }
+
     function returnStringStruct(StringStruct memory values)
         external
         pure
@@ -47,5 +63,12 @@ contract Struct is Events {
         emit LogUint(values.a);
         emit LogAddress(values.b);
         return (param, values.a, values.b);
+    }
+
+    function returnComplexStruct(DataStruct memory dataStruct, UserStruct memory userStruct, uint256 amount, uint256 timestamp)
+        external
+        returns (bytes32)
+    {
+        return dataStruct.id;
     }
 }
