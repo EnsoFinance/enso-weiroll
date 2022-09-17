@@ -180,7 +180,7 @@ library CommandBuilder {
                 // Fixed length data
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 if (offset != 0) {
-                    // Part of dynamic type, write to first free slot
+                    // Part of dynamic type; write to first free slot
                     assembly {
                         mstore(add(add(ret, 36), free), mload(add(stateVar, 32)))
                     }
