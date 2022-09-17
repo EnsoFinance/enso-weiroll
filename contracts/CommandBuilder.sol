@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity ^0.8.11;
 
 library CommandBuilder {
@@ -179,7 +180,7 @@ library CommandBuilder {
                 // Fixed length data
                 bytes memory statevar = state[idx & IDX_VALUE_MASK];
                 if (offset != 0) {
-                    // Part of dynamic type, write to first free slot
+                    // Part of dynamic type; write to first free slot
                     assembly {
                         mstore(add(add(ret, 36), free), mload(add(statevar, 32)))
                     }

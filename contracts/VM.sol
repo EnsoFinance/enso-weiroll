@@ -64,9 +64,8 @@ abstract contract VM {
                                 indices
                             )
                             : state[
-                                uint8(
-                                    bytes1(indices)
-                                ) & CommandBuilder.IDX_VALUE_MASK
+                                uint8(bytes1(indices)) &
+                                CommandBuilder.IDX_VALUE_MASK
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_CALL) {
@@ -78,9 +77,8 @@ abstract contract VM {
                             indices
                         )
                         : state[
-                            uint8(
-                                bytes1(indices)
-                            ) & CommandBuilder.IDX_VALUE_MASK
+                            uint8(bytes1(indices)) &
+                            CommandBuilder.IDX_VALUE_MASK
                         ]
                 );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_STATICCALL) {
@@ -93,9 +91,8 @@ abstract contract VM {
                                 indices
                             )
                             : state[
-                                uint8(
-                                    bytes1(indices)
-                                ) & CommandBuilder.IDX_VALUE_MASK
+                                uint8(bytes1(indices)) &
+                                CommandBuilder.IDX_VALUE_MASK
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
