@@ -40,7 +40,7 @@ abstract contract VM {
         bytes32 indices;
 
         bool success;
-        bytes memory outdata;
+        bytes memory outData;
 
         uint256 commandsLength = commands.length;
         for (uint256 i; i < commandsLength; i = _uncheckedIncrement(i)) {
@@ -55,7 +55,7 @@ abstract contract VM {
             }
 
             if (flags & FLAG_CT_MASK == FLAG_CT_DELEGATECALL) {
-                (success, outdata) = address(uint160(uint256(command))) // target
+                (success, outData) = address(uint160(uint256(command))) // target
                     .delegatecall(
                         // inputs
                         flags & FLAG_DATA == 0
@@ -69,7 +69,7 @@ abstract contract VM {
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_CALL) {
-                (success, outdata) = address(uint160(uint256(command))).call( // target
+                (success, outData) = address(uint160(uint256(command))).call( // target
                     // inputs
                     flags & FLAG_DATA == 0
                         ? state.buildInputs(
@@ -82,7 +82,7 @@ abstract contract VM {
                         ]
                 );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_STATICCALL) {
-                (success, outdata) = address(uint160(uint256(command))) // target
+                (success, outData) = address(uint160(uint256(command))) // target
                     .staticcall(
                         // inputs
                         flags & FLAG_DATA == 0
@@ -96,13 +96,13 @@ abstract contract VM {
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
-                uint256 calleth;
+                uint256 callEth;
                 bytes memory v = state[uint8(bytes1(indices))];
                 assembly {
-                    calleth := mload(add(v, 0x20))
+                    callEth := mload(add(v, 0x20))
                 }
-                (success, outdata) = address(uint160(uint256(command))).call{ // target
-                    value: calleth
+                (success, outData) = address(uint160(uint256(command))).call{ // target
+                    value: callEth
                 }(
                     // inputs
                     flags & FLAG_DATA == 0
@@ -121,22 +121,22 @@ abstract contract VM {
             }
 
             if (!success) {
-                if (outdata.length > 0) {
+                if (outData.length > 0) {
                     assembly {
-                        outdata := add(outdata, 68)
+                        outData := add(outData, 68)
                     }
                 }
                 revert ExecutionFailed({
                     command_index: i,
                     target: address(uint160(uint256(command))),
-                    message: outdata.length > 0 ? string(outdata) : "Unknown"
+                    message: outData.length > 0 ? string(outData) : "Unknown"
                 });
             }
 
             if (flags & FLAG_TUPLE_RETURN != 0) {
-                state.writeTuple(bytes1(command << 88), outdata);
+                state.writeTuple(bytes1(command << 88), outData);
             } else {
-                state = state.writeOutputs(bytes1(command << 88), outdata);
+                state = state.writeOutputs(bytes1(command << 88), outData);
             }
         }
         return state;

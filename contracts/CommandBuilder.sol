@@ -32,12 +32,12 @@ library CommandBuilder {
                     count += stateData.length;
                 } else {
                     // Add the size of the value, rounded up to the next word boundary, plus space for pointer and length
-                    uint256 arglen = state[idx & IDX_VALUE_MASK].length;
+                    uint256 argLen = state[idx & IDX_VALUE_MASK].length;
                     require(
-                        arglen % 32 == 0,
+                        argLen % 32 == 0,
                         "Dynamic state variables must be a multiple of 32 bytes"
                     );
-                    count += arglen + 32;
+                    count += argLen + 32;
                 }
             } else {
                 require(
@@ -72,7 +72,7 @@ library CommandBuilder {
                     memcpy(stateData, 32, ret, free + 4, stateData.length - 32);
                     free += stateData.length - 32;
                 } else {
-                    uint256 arglen = state[idx & IDX_VALUE_MASK].length;
+                    uint256 argLen = state[idx & IDX_VALUE_MASK].length;
 
                     // Variable length data; put a pointer in the slot and write the data at the end
                     assembly {
@@ -83,15 +83,15 @@ library CommandBuilder {
                         0,
                         ret,
                         free + 4,
-                        arglen
+                        argLen
                     );
-                    free += arglen;
+                    free += argLen;
                 }
             } else {
                 // Fixed length data; write it directly
-                bytes memory statevar = state[idx & IDX_VALUE_MASK];
+                bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 assembly {
-                    mstore(add(add(ret, 36), count), mload(add(statevar, 32)))
+                    mstore(add(add(ret, 36), count), mload(add(stateVar, 32)))
                 }
             }
             unchecked {
@@ -116,12 +116,12 @@ library CommandBuilder {
                 state = abi.decode(output, (bytes[]));
             } else {
                 // Check the first field is 0x20 (because we have only a single return value)
-                uint256 argptr;
+                uint256 argPtr;
                 assembly {
-                    argptr := mload(add(output, 32))
+                    argPtr := mload(add(output, 32))
                 }
                 require(
-                    argptr == 32,
+                    argPtr == 32,
                     "Only one return value permitted (variable)"
                 );
 
@@ -166,9 +166,9 @@ library CommandBuilder {
 
     function memcpy(
         bytes memory src,
-        uint256 srcidx,
+        uint256 srcIdx,
         bytes memory dest,
-        uint256 destidx,
+        uint256 destIdx,
         uint256 len
     ) internal view {
         assembly {
@@ -176,9 +176,9 @@ library CommandBuilder {
                 staticcall(
                     gas(),
                     4,
-                    add(add(src, 32), srcidx),
+                    add(add(src, 32), srcIdx),
                     len,
-                    add(add(dest, 32), destidx),
+                    add(add(dest, 32), destIdx),
                     len
                 )
             )
