@@ -155,6 +155,46 @@ describe("CommandBuilder", function () {
 
   });
 
+  it("Should build inputs that match Struct.returnMultiStructArray ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [[
+      {
+        a: "0x1010101010101010101010101010101010101010",
+        b: "0x1111111111111111111111111111111111111111",
+        d: {
+          id: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada",
+          category: 1,
+          from: "0x1212121212121212121212121212121212121212",
+          to: "0x1313131313131313131313131313131313131313",
+          amount: 1000,
+          data: "0xbebebebe"
+        }
+      },{
+        a: "0x2020202020202020202020202020202020202020",
+        b: "0x2121212121212121212121212121212121212121",
+        d: {
+          id: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+          category: 2,
+          from: "0x2222222222222222222222222222222222222222",
+          to: "0x2323232323232323232323232323232323232323",
+          amount: 1000,
+          data: "0xbebebebe"
+        }
+      }
+
+    ]];
+
+    abiout = abi.encode(struct.interface.getFunction("returnMultiStructArray").inputs, args);
+
+    planner.add(struct.returnMultiStructArray(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Struct.returnMultiStructArray");
+
+  });
+
   it("Should build inputs that match Fixed.addStruct ABI", async () => {
     const planner = new weiroll.Planner();
 
