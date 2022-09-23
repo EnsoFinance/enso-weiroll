@@ -30,6 +30,12 @@ contract Struct is Events {
       bool approvedFrom;
     }
 
+    struct MultiStruct {
+      address a;
+      address b;
+      DataStruct d;
+    }
+
     function returnStringStruct(StringStruct memory values)
         external
         pure
@@ -65,10 +71,21 @@ contract Struct is Events {
         return (param, values.a, values.b);
     }
 
-    function returnComplexStruct(DataStruct memory dataStruct, UserStruct memory userStruct, uint256 amount, uint256 timestamp)
+    function returnComplexStruct(
+        DataStruct memory dataStruct,
+        UserStruct memory userStruct,
+        uint256 amount,
+        uint256 timestamp
+    )
         external
         returns (bytes32)
     {
         return dataStruct.id;
+    }
+
+    function returnMultiStructArray(
+        MultiStruct[] memory multiStructs
+    ) external returns (uint256, bytes32){
+        return (multiStructs.length, multiStructs[0].d.id);
     }
 }
