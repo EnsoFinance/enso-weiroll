@@ -48,8 +48,6 @@ library CommandBuilder {
             }
             unchecked {
                 free += 32;
-            }
-            unchecked {
                 ++i;
             }
         }
@@ -96,8 +94,6 @@ library CommandBuilder {
             }
             unchecked {
                 count += 32;
-            }
-            unchecked {
                 ++i;
             }
         }
