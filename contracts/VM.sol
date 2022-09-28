@@ -19,17 +19,11 @@ abstract contract VM {
     uint256 constant SHORT_COMMAND_FILL =
         0x000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-    address immutable self;
-
     error ExecutionFailed(
         uint256 command_index,
         address target,
         string message
     );
-
-    constructor() {
-        self = address(this);
-    }
 
     function _execute(bytes32[] calldata commands, bytes[] memory state)
         internal
