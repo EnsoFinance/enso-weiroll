@@ -10,19 +10,26 @@ library CommandBuilder {
     uint256 constant IDX_DYNAMIC_START = 0xfd;
     uint256 constant IDX_DYNAMIC_END = 0xfc;
 
+    struct OffsetData {
+      uint8 idx;
+      uint8 parentIdx;
+      uint8 depth;
+      uint232 length;
+    }
+
     function buildInputs(
         bytes[] memory state,
         bytes4 selector,
         bytes32 indices
     ) internal view returns (bytes memory ret) {
         uint256 idx; // The current command index
-        uint256 offsetIdx; // The index of the current offset
+        uint8 offsetIdx; // The index of the next free offset
 
-        uint256 count; // Number of bytes in whole ABI encoded message
-        uint256 free; // Pointer to first free byte in tail part of message
-        uint256 offset; // Pointer to the first free byte for variable length data inside dynamic types
+        uint232 count; // Number of bytes in whole ABI encoded message
+        uint232 free; // Pointer to first free byte in tail part of message
 
-        uint256[] memory offsets = new uint256[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
+        OffsetData memory offset;
+        OffsetData[] memory offsets = new OffsetData[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
         bytes memory stateData; // Optionally encode the current state if the call requires it
 
         uint256 indicesLength; // Number of indices
@@ -41,24 +48,45 @@ library CommandBuilder {
                     }
                     unchecked {
                         free += 32;
-                        count += stateData.length;
+                        count += uint232(stateData.length); // TODO: safecast
                     }
                 } else if (idx == IDX_DYNAMIC_START) {
-                    offset = 1; // Semantically overloading the offset to work as a boolean
-                } else if (idx == IDX_DYNAMIC_END) {
-                    unchecked {
-                        offsets[offsetIdx] = offset - 1; // Remove 1 that was set at the start of the dynamic type, to get correct offset length
+                    uint8 parentIdx;
+                    uint8 depth;
+                    if (offset.depth != 0) {
+                      // Set parent idx and depth based on current offset
+                      parentIdx = offset.idx;
+                      unchecked {
+                        depth = offset.depth + 1;
+                      }
+                      // Set current offset into the offsets array
+                      offsets[parentIdx] = offset;
+                      delete offset;
+                    } else {
+                      parentIdx = type(uint8).max;
                     }
-                    offset = 0;
-                    // Increase count and free for dynamic type pointer
+                    offset.idx = offsetIdx;
+                    offset.parentIdx = parentIdx;
+                    offset.depth = depth;
                     unchecked {
                         offsetIdx++;
+                    }
+                } else if (idx == IDX_DYNAMIC_END) {
+                    offsets[offset.idx] = offset;
+                    if (offset.depth > 1) {
+                      // Return to parent offset
+                      offset = offsets[offset.parentIdx];
+                    } else {
+                      delete offset;
+                    }
+                    // Increase count and free for dynamic type pointer
+                    unchecked {
                         free += 32;
                         count += 32;
                     }
                 } else {
                     // Add the size of the value, rounded up to the next word boundary, plus space for pointer and length
-                    uint256 argLen = state[idx & IDX_VALUE_MASK].length;
+                    uint232 argLen = uint232(state[idx & IDX_VALUE_MASK].length); // TODO: safecast
                     require(
                         argLen % 32 == 0,
                         "Dynamic state variables must be a multiple of 32 bytes"
@@ -66,10 +94,10 @@ library CommandBuilder {
                     unchecked {
                         count += argLen + 32;
                     }
-                    if (offset != 0) {
+                    if (offset.depth != 0) {
                         // Increase offset size
                         unchecked {
-                            offset += 32;
+                            offset.length += 32;
                         }
                     } else {
                         // Progress next free slot
@@ -86,9 +114,9 @@ library CommandBuilder {
                 unchecked {
                     count += 32;
                 }
-                if (offset != 0) {
+                if (offset.depth != 0) {
                     unchecked {
-                        offset += 32;
+                        offset.length += 32;
                     }
                 } else {
                     unchecked {
@@ -117,7 +145,7 @@ library CommandBuilder {
                     }
                     memcpy(stateData, 32, ret, free + 4, stateData.length - 32);
                     unchecked {
-                        free += stateData.length - 32;
+                        free += uint232(stateData.length) - 32;
                         count += 32;
                     }
                 } else if (idx == IDX_DYNAMIC_START) {
@@ -125,22 +153,30 @@ library CommandBuilder {
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
+                    offset = offsets[offsetIdx];
                     unchecked {
-                        offset = free + offsets[offsetIdx];
+                        offset.length += free;
                         count += 32;
+                        offsetIdx++;
                     }
                 } else if (idx == IDX_DYNAMIC_END) {
-                    offset = 0;
-                    unchecked {
-                        offsetIdx++;
+                    if (offset.depth > 1) {
+                      // Return to parent offset
+                      offset = offsets[offset.parentIdx];
+                      // TODO: Check if this is needed and/or if there is a better way to do it
+                      unchecked {
+                          offset.length += free;
+                      }
+                    } else {
+                      delete offset;
                     }
                 } else {
                     // Variable length data
-                    uint256 argLen = state[idx & IDX_VALUE_MASK].length;
+                    uint232 argLen = uint232(state[idx & IDX_VALUE_MASK].length); // TODO: safecast
 
-                    if (offset != 0) {
+                    if (offset.depth != 0) {
                         // Part of dynamic type; put a pointer in the first free slot and write the data to the offset free slot
-                        uint256 pointer = offsets[offsetIdx];
+                        uint232 pointer = offsets[offset.idx].length;
                         assembly {
                             mstore(add(add(ret, 36), free), pointer)
                         }
@@ -151,12 +187,12 @@ library CommandBuilder {
                             state[idx & IDX_VALUE_MASK],
                             0,
                             ret,
-                            offset + 4,
+                            offset.length + 4,
                             argLen
                         );
                         unchecked {
-                            offsets[offsetIdx] += argLen;
-                            offset += argLen;
+                            offsets[offset.idx].length += argLen;
+                            offset.length += argLen;
                         }
                     } else {
                         // Put a pointer in the current slot and write the data to first free slot
@@ -179,7 +215,7 @@ library CommandBuilder {
             } else {
                 // Fixed length data
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
-                if (offset != 0) {
+                if (offset.depth != 0) {
                     // Part of dynamic type; write to first free slot
                     assembly {
                         mstore(add(add(ret, 36), free), mload(add(stateVar, 32)))
