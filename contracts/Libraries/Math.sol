@@ -14,6 +14,10 @@ contract Math {
         return a * b;
     }
 
+    function div(uint256 a, uint256 b) external pure returns (uint256) {
+        return a / b;
+    }
+
     function sum(uint256[] calldata values)
         external
         pure

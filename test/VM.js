@@ -21,6 +21,7 @@ describe("VM", function () {
     vm,
     math,
     strings,
+    struct,
     stateTest,
     sender,
     revert,
@@ -33,6 +34,7 @@ describe("VM", function () {
   before(async () => {
     math = await deployLibrary("Math");
     strings = await deployLibrary("Strings");
+    struct = await deployLibrary("Struct");
     sender = await deployLibrary("Sender");
     revert = await deployLibrary("Revert");
     payable = await deployContract("Payable");
@@ -343,6 +345,27 @@ describe("VM", function () {
 
     const receipt = await tx.wait();
     console.log(`Payable: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should pass return value to dynamic tuple", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnDynamicParamAndStruct("Test", { a: result, b: token.address}));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .withArgs("Test");
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(3);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogAddress")
+      .withArgs(token.address);
+
+    const receipt = await tx.wait();
+    console.log(`dynamic param and struct: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should pass and return raw state to functions", async () => {
