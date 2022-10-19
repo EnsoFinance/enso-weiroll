@@ -368,6 +368,45 @@ describe("VM", function () {
     console.log(`dynamic param and struct: ${receipt.gasUsed.toNumber()} gas`);
   });
 
+  it("Should pass return value to array of tuples", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnMultiStructArray([
+      {
+        a: "0x1010101010101010101010101010101010101010",
+        b: "0x1111111111111111111111111111111111111111",
+        d: {
+          id: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada",
+          category: 1,
+          from: "0x1212121212121212121212121212121212121212",
+          to: "0x1313131313131313131313131313131313131313",
+          amount: result,
+          data: "0xbebebebe"
+        }
+      },{
+        a: "0x2020202020202020202020202020202020202020",
+        b: "0x2121212121212121212121212121212121212121",
+        d: {
+          id: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa",
+          category: 2,
+          from: "0x2222222222222222222222222222222222222222",
+          to: "0x2323232323232323232323232323232323232323",
+          amount: 1000,
+          data: "0xbebebebe"
+        }
+      }
+    ]));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(3);
+
+    const receipt = await tx.wait();
+    console.log(`dynamic param and struct: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
   it("Should pass and return raw state to functions", async () => {
     const commands = [
       [stateTest, "addSlots", "0x00000102feffff", "0xfe"],

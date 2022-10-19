@@ -78,6 +78,7 @@ contract Struct is Events {
         uint256 timestamp
     )
         external
+        pure
         returns (bytes32)
     {
         return dataStruct.id;
@@ -85,7 +86,11 @@ contract Struct is Events {
 
     function returnMultiStructArray(
         MultiStruct[] memory multiStructs
-    ) external returns (uint256, bytes32){
+    )
+        external
+        returns (uint256, bytes32)
+    {
+        emit LogUint(multiStructs[0].d.amount);
         return (multiStructs.length, multiStructs[0].d.id);
     }
 }

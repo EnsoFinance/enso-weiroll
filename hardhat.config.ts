@@ -11,7 +11,20 @@ const userConfig: HardhatUserConfig = {
   mocha: {
     timeout: 2000000,
   },
-  solidity: "0.8.16",
+  solidity: {
+    compilers: [
+      {
+        version: '0.8.16',
+        settings: {
+          viaIR: true,
+          optimizer: {
+            enabled: true,
+            runs: 100000,
+          },
+        },
+      },
+    ],
+  },
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {},

@@ -108,6 +108,21 @@ describe("CommandBuilder", function () {
 
   });
 
+  it("Should build inputs that match Arrays.returnStringArrayLength ABI", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [["Hello","World"]];
+
+    abiout = abi.encode(arrays.interface.getFunction("returnStringArrayLength").inputs, args);
+
+    planner.add(arrays.returnStringArrayLength(...args));
+
+    const {commands, state} = planner.plan();
+
+    await executeBuildInputs(commands, state, abiout, "Arrays.returnStringArrayLength");
+
+  });
+
   it("Should build inputs that match Struct.returnStringStruct ABI", async () => {
     const planner = new weiroll.Planner();
 
@@ -182,7 +197,6 @@ describe("CommandBuilder", function () {
           data: "0xbebebebe"
         }
       }
-
     ]];
 
     abiout = abi.encode(struct.interface.getFunction("returnMultiStructArray").inputs, args);

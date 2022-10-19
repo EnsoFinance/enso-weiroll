@@ -17,4 +17,12 @@ contract Arrays {
         }
         ret = sumA * sumB;
     }
+
+    function returnStringArrayLength(string[] memory values)
+        external
+        pure
+        returns (uint256)
+    {
+        return values.length;
+    }
 }
