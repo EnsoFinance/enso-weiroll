@@ -22,6 +22,7 @@ describe("VM", function () {
     math,
     strings,
     struct,
+    arrays,
     stateTest,
     sender,
     revert,
@@ -35,6 +36,7 @@ describe("VM", function () {
     math = await deployLibrary("Math");
     strings = await deployLibrary("Strings");
     struct = await deployLibrary("Struct");
+    arrays = await deployLibrary("Arrays");
     sender = await deployLibrary("Sender");
     revert = await deployLibrary("Revert");
     payable = await deployContract("Payable");
@@ -405,6 +407,78 @@ describe("VM", function () {
 
     const receipt = await tx.wait();
     console.log(`dynamic param and struct: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should pass return value to array struct", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnArrayStructSum(
+      {
+        a: "0x1010101010101010101010101010101010101010",
+        values: [ result, 2, 5 ]
+      }
+    ));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(10);
+
+    const receipt = await tx.wait();
+    console.log(`array struct: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should pass return value to array of arrays", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    const total = planner.add(arrays.sumArrays([
+      [ result, 2, 5 ],
+      [ 5, 5 ],
+      [ 2, 2, 2, 2, 2 ]
+    ]));
+    planner.add(events.logUint(total));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(30);
+
+    const receipt = await tx.wait();
+    console.log(`sum array o arrays: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should pass return value to nested structs", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(strings.strcat("Hello ", "world!"));
+    planner.add(struct.returnNestedStructString(
+      {
+        a: 3,
+        b: {
+          a: 2,
+          b: {
+            a: 1,
+            b: {
+              a: 0,
+              b: {
+                a: result,
+                b: "Test"
+              }
+            }
+          }
+        }
+      }
+    ));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .withArgs("Hello world!");
+
+    const receipt = await tx.wait();
+    console.log(`nested structs: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should pass and return raw state to functions", async () => {
