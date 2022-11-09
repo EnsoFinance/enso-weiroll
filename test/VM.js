@@ -393,7 +393,7 @@ describe("VM", function () {
           category: 2,
           from: "0x2222222222222222222222222222222222222222",
           to: "0x2323232323232323232323232323232323232323",
-          amount: 1000,
+          amount: result,
           data: "0xbebebebe"
         }
       }
@@ -426,7 +426,7 @@ describe("VM", function () {
       .withArgs(10);
 
     const receipt = await tx.wait();
-    console.log(`array struct: ${receipt.gasUsed.toNumber()} gas`);
+    console.log(`sum array struct: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should pass return value to array of arrays", async () => {
@@ -434,8 +434,8 @@ describe("VM", function () {
     const result = planner.add(math.add(1, 2));
     const total = planner.add(arrays.sumArrays([
       [ result, 2, 5 ],
-      [ 5, 5 ],
-      [ 2, 2, 2, 2, 2 ]
+      [ 7, result ],
+      [ 1, 2, 2, result, 2 ]
     ]));
     planner.add(events.logUint(total));
     const {commands, state} = planner.plan();
@@ -446,7 +446,31 @@ describe("VM", function () {
       .withArgs(30);
 
     const receipt = await tx.wait();
-    console.log(`sum array o arrays: ${receipt.gasUsed.toNumber()} gas`);
+    console.log(`sum array of arrays: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should pass return value to array of array struct", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnArrayOfArrayStructSum([
+      {
+        a: "0x1010101010101010101010101010101010101010",
+        values: [ result, 2, 5 ]
+      },
+      {
+        a: "0x1010101010101010101010101010101010101010",
+        values: [ result, 7 ]
+      }
+    ]));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(20);
+
+    const receipt = await tx.wait();
+    console.log(`sum array of array structs: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should pass return value to nested structs", async () => {

@@ -141,4 +141,19 @@ contract Struct is Events, Math {
         emit LogUint(total);
         return total;
     }
+
+    function returnArrayOfArrayStructSum(
+        ArrayStruct[] memory arrayStructs
+    )
+        external
+        returns (uint256)
+    {
+        uint256[] memory sums = new uint256[](arrayStructs.length);
+        for (uint256 i; i < arrayStructs.length; i++) {
+            sums[i] =  sum(arrayStructs[i].values);
+        }
+        uint256 total = sum(sums);
+        emit LogUint(total);
+        return total;
+    }
 }
