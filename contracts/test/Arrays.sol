@@ -20,6 +20,19 @@ contract Arrays is Math {
         ret = sumA * sumB;
     }
 
+    function concatArray(string[] memory strings)
+        external
+        pure
+        returns (string memory ret)
+    {
+        if (strings.length > 0) {
+            ret = string(abi.encodePacked(strings[0]));
+            for (uint256 i = 1; i < strings.length; i++) {
+              ret = string(abi.encodePacked(ret, strings[i]));
+            }
+        }
+    }
+
     function sumArrays(uint256[][] calldata values)
         external
         pure

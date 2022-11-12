@@ -429,6 +429,29 @@ describe("VM", function () {
     console.log(`sum array struct: ${receipt.gasUsed.toNumber()} gas`);
   });
 
+  it("Should pass return value to multiarray struct", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnMultiArrayStructSum(
+      {
+        a: "0x1010101010101010101010101010101010101010",
+        values: [
+          [ result, 2, 5 ],
+          [ result, 1, 2, 4 ]
+        ]
+      }
+    ));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(20);
+
+    const receipt = await tx.wait();
+    console.log(`sum array struct: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
   it("Should pass return value to array of arrays", async () => {
     const planner = new weiroll.Planner();
     const result = planner.add(math.add(1, 2));
@@ -500,6 +523,24 @@ describe("VM", function () {
     await expect(tx)
       .to.emit(eventsContract.attach(vm.address), "LogString")
       .withArgs("Hello world!");
+
+    const receipt = await tx.wait();
+    console.log(`nested structs: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
+  it("Should pass return value to array of dynamic strings", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(strings.strcat("Hello ", "world!"));
+    const phrase = planner.add(arrays.concatArray(
+      [result, " How ", "are ", "you?"]
+    ));
+    planner.add(events.logString(phrase));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .withArgs("Hello world! How are you?");
 
     const receipt = await tx.wait();
     console.log(`nested structs: ${receipt.gasUsed.toNumber()} gas`);

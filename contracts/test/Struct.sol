@@ -42,6 +42,11 @@ contract Struct is Events, Math {
       uint256[] values;
     }
 
+    struct MultiArrayStruct {
+      address a;
+      uint256[][] values;
+    }
+
     struct StringMultiStruct {
       uint256 a;
       StringStruct b;
@@ -151,6 +156,21 @@ contract Struct is Events, Math {
         uint256[] memory sums = new uint256[](arrayStructs.length);
         for (uint256 i; i < arrayStructs.length; i++) {
             sums[i] =  sum(arrayStructs[i].values);
+        }
+        uint256 total = sum(sums);
+        emit LogUint(total);
+        return total;
+    }
+
+    function returnMultiArrayStructSum(
+        MultiArrayStruct memory multiArrayStruct
+    )
+        external
+        returns (uint256)
+    {
+        uint256[] memory sums = new uint256[](multiArrayStruct.values.length);
+        for (uint256 i; i < multiArrayStruct.values.length; i++) {
+            sums[i] =  sum(multiArrayStruct.values[i]);
         }
         uint256 total = sum(sums);
         emit LogUint(total);
