@@ -2,7 +2,7 @@
   "name": "@ensofinance/weiroll",
   "version": "1.4.0",
   "devDependencies": {
-    "@ensofinance/weiroll.js": "git@github.com:EnsoFinance/enso-weiroll.js.git#recursive-refactor",
+    "@ensofinance/weiroll.js": "0.4.1-alpha.1",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@openzeppelin/contracts": "^4.1.0",
