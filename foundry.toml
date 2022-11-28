@@ -2,6 +2,7 @@
 [profile.default]
 src = 'contracts'
 out = 'out'
+cache_path = 'cache_foundry'
 libs = ['lib']
 
 solc = '0.8.16'

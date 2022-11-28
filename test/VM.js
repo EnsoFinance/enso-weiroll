@@ -77,6 +77,10 @@ describe("VM", function () {
     planner.add(events.logAddress(msgSender));
 
     const { commands, state } = planner.plan();
+    console.log(sender.address);
+    console.log(events.address);
+    console.log({commands});
+    console.log({state});
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
