@@ -5,4 +5,7 @@ node_modules
 cache
 artifacts
 
+#Foundry files
+out
+
 yarn.lock
