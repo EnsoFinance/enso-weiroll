@@ -159,3 +159,14 @@ Next, the vm calls the target contract with the encoded input data. A `delegatec
 ### Output decoding
 
 Finally, the return data is decoded by following the output argument specifier, in the same fashion as the 'input encoding' stage. Only one return value is supported.
+
+## Foundry Testing - Fuzz Tests
+
+In order to run tests using [Foundry](https://getfoundry.sh/), first setup the dependencies:  
+```bash
+forge install
+```
+then run:
+```bash
+forge test --match-path "./test/**/*.t.sol"
+```
