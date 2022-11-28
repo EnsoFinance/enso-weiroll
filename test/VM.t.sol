@@ -9,6 +9,7 @@ import "./weiroll.sol";
 import "../contracts/test/TestableVM.sol";
 import "../contracts/test/Sender.sol";
 import "../contracts/Libraries/Events.sol";
+import "../contracts/Libraries/Math.sol";
 
 contract TestWeiVM is Test {
     event LogAddress(address message);
@@ -16,14 +17,16 @@ contract TestWeiVM is Test {
     TestableVM weiVM;
     Sender sender;
     Events events;
+    Math math;
 
     function setUp() public {
         weiVM = new TestableVM();
         sender = new Sender();
         events = new Events();
+        math = new Math();
     }
 
-    function testShouldReturnMsgSender() public {
+    function testShouldReturnAndEmitMsgSender() public {
         bytes32[] memory commands = new bytes32[](2);
 
         commands[0] = WeirollPlanner.buildCommand(
@@ -90,7 +93,7 @@ contract TestWeiVM is Test {
             sender.sender.selector,
             0x00, // delegate call
             0xffffffffffff, // no inputs
-            index, // store fixed size result at fuzzed index 
+            index, // store fixed size result at fuzzed index
             address(sender)
         );
 
@@ -103,5 +106,46 @@ contract TestWeiVM is Test {
             address(uint160(uint256(bytes32(returnedState[uint8(index)])))),
             address(this)
         );
+    }
+
+    function testSimpleAdd() public {
+        bytes32[] memory commands = new bytes32[](1);
+
+        commands[0] = WeirollPlanner.buildCommand(
+            math.add.selector,
+            0x00, // delegate call
+            0x0000ffffffff, // use index 0 and index 0 as inputs
+            0x01, // store fixed size result at index 1 of state
+            address(math)
+        );
+
+        // state needs to be large enough to store the result at fuzzed index
+        bytes[] memory state = new bytes[](2);
+        state[0] = abi.encodePacked(uint256(1));
+
+        bytes[] memory returnedState = weiVM.execute(commands, state);
+
+        assertEq(uint256(bytes32(returnedState[1])), 2);
+    }
+
+    function testFuzzAdd(uint128 _a, uint128 _b) public {
+        bytes32[] memory commands = new bytes32[](1);
+
+        commands[0] = WeirollPlanner.buildCommand(
+            math.add.selector,
+            0x00, // delegate call
+            0x0001ffffffff, // use index 0 and index 1 as inputs
+            0x02, // store fixed size result at index 2 of state
+            address(math)
+        );
+
+        // state needs to be large enough to store the result at index 2
+        bytes[] memory state = new bytes[](3);
+        state[0] = abi.encodePacked(uint256(_a));
+        state[1] = abi.encodePacked(uint256(_b));
+
+        bytes[] memory returnedState = weiVM.execute(commands, state);
+
+        assertEq(uint256(bytes32(returnedState[2])), uint256(_a) + _b);
     }
 }
