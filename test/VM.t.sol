@@ -119,7 +119,7 @@ contract TestWeiVM is Test {
             address(math)
         );
 
-        // state needs to be large enough to store the result at fuzzed index
+        // state needs to be large enough to store the result at index 1
         bytes[] memory state = new bytes[](2);
         state[0] = abi.encodePacked(uint256(1));
 

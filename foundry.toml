@@ -10,4 +10,7 @@ via_ir = true
 optimizer = true
 optimizer_runs = 100000
 
+[rpc_endpoints]
+mainnet = "https://eth-rpc.gateway.pokt.network"
+
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

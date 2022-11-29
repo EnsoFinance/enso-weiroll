@@ -19,5 +19,9 @@
   "scripts": {
     "test": "hardhat test",
     "format": "prettier --write 'contracts/**/*.sol'"
+  },
+  "dependencies": {
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.3"
   }
 }
