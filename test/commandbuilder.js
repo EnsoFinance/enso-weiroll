@@ -134,6 +134,9 @@ describe("CommandBuilder", function () {
 
     const {commands, state} = planner.plan();
 
+    console.log({commands});
+    console.log({state});
+
     await executeBuildInputs(commands, state, abiout, "Struct.returnStringStruct");
 
   });

@@ -6,6 +6,8 @@
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@openzeppelin/contracts": "^4.1.0",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-periphery": "^1.4.3",
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.3.1",
