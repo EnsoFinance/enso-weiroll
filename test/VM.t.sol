@@ -8,6 +8,7 @@ import "./weiroll.sol";
 
 import "../contracts/test/TestableVM.sol";
 import "../contracts/test/Sender.sol";
+import "../contracts/test/Struct.sol";
 import "../contracts/Libraries/Events.sol";
 import "../contracts/Libraries/Math.sol";
 
@@ -18,12 +19,14 @@ contract TestWeiVM is Test {
     Sender sender;
     Events events;
     Math math;
+    Struct structer;
 
     function setUp() public {
         weiVM = new TestableVM();
         sender = new Sender();
         events = new Events();
         math = new Math();
+        structer = new Struct();
     }
 
     function testShouldReturnAndEmitMsgSender() public {
@@ -147,5 +150,60 @@ contract TestWeiVM is Test {
         bytes[] memory returnedState = weiVM.execute(commands, state);
 
         assertEq(uint256(bytes32(returnedState[2])), uint256(_a) + _b);
+    }
+
+    function testReturnStringStruct() public {
+        Struct.StringStruct memory stringStruct = Struct.StringStruct({
+            a: "Hello",
+            b: "World"
+        });
+
+        bytes32[] memory commands = new bytes32[](1);
+
+        commands[0] = WeirollPlanner.buildCommand(
+            structer.returnStringStruct.selector,
+            0x81, // delegate call
+            0x80ffffffffff, // use index 0 as variable input
+            0x01, // store into index 1
+            address(structer)
+        );
+
+        // state needs to be large enough to store the result at index 1
+        bytes[] memory state = new bytes[](2);
+
+        // abi encode
+        bytes memory state0 = abi.encode(stringStruct);
+
+        // strip the double abi encoding, not need for arguments
+        state[0] = new bytes(state0.length - 0x20);
+        memcpy(state0, 0x20, state[0], 0, state0.length - 0x20);
+
+        bytes[] memory returnedState = weiVM.execute(commands, state);
+
+        // console2.logBytes(returnedState[1]);
+
+        // (string memory a, ) = abi.decode(returnedState[1], (string, string));
+        // assertEq(a, "Hello");
+    }
+
+    function memcpy(
+        bytes memory src,
+        uint256 srcIdx,
+        bytes memory dest,
+        uint256 destIdx,
+        uint256 len
+    ) internal view {
+        assembly {
+            pop(
+                staticcall(
+                    gas(),
+                    4,
+                    add(add(src, 32), srcIdx),
+                    len,
+                    add(add(dest, 32), destIdx),
+                    len
+                )
+            )
+        }
     }
 }
