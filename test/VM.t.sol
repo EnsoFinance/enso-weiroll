@@ -194,6 +194,48 @@ contract TestWeiVM is Test {
         assertEq(a, "Hello");
     }
 
+    function testFuzzReturnStringStruct(string memory _a, string memory _b) public {
+        Struct.StringStruct memory stringStruct = Struct.StringStruct({
+            a: _a,
+            b: _b
+        });
+
+        bytes32[] memory commands = new bytes32[](1);
+
+        commands[0] = WeirollPlanner.buildCommand(
+            structer.returnStringStruct.selector,
+            0x81, // call and set tup bit
+            0x80ffffffffff, // use index 0 as variable input
+            0x01, // store into index 1
+            address(structer)
+        );
+
+        // state needs to be large enough to store the result at index 1
+        bytes[] memory state = new bytes[](2);
+
+        // abi encode
+        bytes memory state0 = abi.encode(stringStruct);
+
+        // strip the double abi encoding, not needed for arguments
+        state[0] = new bytes(state0.length - 0x20);
+        memcpy(state0, 0x20, state[0], 0, state0.length - 0x20);
+
+        bytes[] memory returnedState = weiVM.execute(commands, state);
+
+        // for some reason, we need to get rid of the first 32 bytes. What's in there?
+        bytes memory returnedState1 = new bytes(returnedState[1].length - 0x20);
+        memcpy(
+            returnedState[1],
+            0x20,
+            returnedState1,
+            0,
+            returnedState[1].length - 0x20
+        );
+
+        (string memory a, ) = abi.decode(returnedState1, (string, string));
+        assertEq(a, _a);
+    }
+
     function memcpy(
         bytes memory src,
         uint256 srcIdx,
