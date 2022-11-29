@@ -69,7 +69,9 @@ contract TestWeiVMDeployed is Test {
         );
 
         // extended in indices
-        commands[1] = 0x0001020304050607ffffffffffffffffffffffffffffffffffffffffffffffff;
+        commands[
+            1
+        ] = 0x0001020304050607ffffffffffffffffffffffffffffffffffffffffffffffff;
 
         bytes[] memory state = new bytes[](9);
         bytes memory paramBytes = abi.encode(params);
@@ -90,10 +92,9 @@ contract TestWeiVMDeployed is Test {
             }
         }
 
-        (bool success, bytes memory data) = address(weiVM)
-            .delegatecall(
-                abi.encodeWithSelector(weiVM.execute.selector, commands, state)
-            );
+        (bool success, bytes memory data) = address(weiVM).delegatecall(
+            abi.encodeWithSelector(weiVM.execute.selector, commands, state)
+        );
 
         assertTrue(success);
 

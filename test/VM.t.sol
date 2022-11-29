@@ -162,7 +162,7 @@ contract TestWeiVM is Test {
 
         commands[0] = WeirollPlanner.buildCommand(
             structer.returnStringStruct.selector,
-            0x81, // delegate call
+            0x81, // call and set tup bit
             0x80ffffffffff, // use index 0 as variable input
             0x01, // store into index 1
             address(structer)
@@ -174,16 +174,24 @@ contract TestWeiVM is Test {
         // abi encode
         bytes memory state0 = abi.encode(stringStruct);
 
-        // strip the double abi encoding, not need for arguments
+        // strip the double abi encoding, not needed for arguments
         state[0] = new bytes(state0.length - 0x20);
         memcpy(state0, 0x20, state[0], 0, state0.length - 0x20);
 
         bytes[] memory returnedState = weiVM.execute(commands, state);
 
-        // console2.logBytes(returnedState[1]);
+        // for some reason, we need to get rid of the first 32 bytes. What's in there?
+        bytes memory returnedState1 = new bytes(returnedState[1].length - 0x20);
+        memcpy(
+            returnedState[1],
+            0x20,
+            returnedState1,
+            0,
+            returnedState[1].length - 0x20
+        );
 
-        // (string memory a, ) = abi.decode(returnedState[1], (string, string));
-        // assertEq(a, "Hello");
+        (string memory a, ) = abi.decode(returnedState1, (string, string));
+        assertEq(a, "Hello");
     }
 
     function memcpy(
