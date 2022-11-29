@@ -400,11 +400,6 @@ describe("VM", function () {
     ]));
     const {commands, state} = planner.plan();
 
-    // console.log(math.address);
-    // console.log(struct.address);
-    // console.log({commands});
-    // console.log({state});
-
     const tx = await vm.execute(commands, state);
     await expect(tx)
       .to.emit(eventsContract.attach(vm.address), "LogUint")
