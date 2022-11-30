@@ -115,9 +115,29 @@ abstract contract VM {
             }
 
             if (!success) {
-                if (outData.length > 0) {
+                string memory message = "Unknown";
+                if (outData.length > 68) {
+                    // This might be an error message, parse the outData
+                    // Remove selector. First 32 bytes should be a pointer that indicates the start of data in memory
                     assembly {
-                        outData := add(outData, 68)
+                        outData := add(outData, 4)
+                    }
+                    uint256 pointer = uint256(bytes32(outData));
+                    if (pointer == 32) {
+                        // Remove pointer. If it is a string, the next 32 bytes will hold the size
+                        assembly {
+                            outData := add(outData, 32)
+                        }
+                        uint256 size = uint256(bytes32(outData));
+                        // Remove size. The remaining data should be the string content
+                        assembly {
+                            outData := add(outData, 32)
+                        }
+                        // If the size variable is the same as the remaining bytes length, we can be fairly certain
+                        // this is a dynamic string, so convert the bytes to a string and emit the message. While an
+                        // error function with 3 static parameters is capable of producing a similar output, there is
+                        // low risk of a contract unintentionally emitting a message.
+                        if (size == outData.length) message = string(outData);
                     }
                 }
                 revert ExecutionFailed({
@@ -125,7 +145,7 @@ abstract contract VM {
                         ? i
                         : i - 1,
                     target: address(uint160(uint256(command))),
-                    message: outData.length > 0 ? string(outData) : "Unknown"
+                    message: message
                 });
             }
 

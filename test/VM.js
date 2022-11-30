@@ -610,7 +610,66 @@ describe("VM", function () {
     const { commands, state } = planner.plan();
 
     await expect(vm.execute(commands, state)).to.be.revertedWith(
-      "ExecutionFailed"
+      `ExecutionFailed(0, "${revert.address}", "Hello World!")`
     );
   });
+
+  it("Should revert on failing assert", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.assertFail());
+    const { commands, state } = planner.plan();
+
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Unknown")`
+    );
+  })
+
+  it("Should revert with Error(uint256) as unknown", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.uintError1());
+    const { commands, state } = planner.plan();
+
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Unknown")`
+    );
+  })
+
+  it("Should revert with Error(uint256,uint256) as unknown", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.uintError2());
+    const { commands, state } = planner.plan();
+
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Unknown")`
+    );
+  })
+
+  it("Should revert with Error(uint256,uint256,uint256) as unknown", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.uintError3());
+    const { commands, state } = planner.plan();
+
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Unknown")`
+    );
+  })
+
+  it("Should revert with Error(uint256,uint256,uint256) with error message", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.fakeErrorMessage());
+    const { commands, state } = planner.plan();
+
+    // The values passed to the Error function inside `fakeErrorMessage()`
+    // are chosen to duplicate the emitting of a string. Despite being
+    // 3 uint parameters, an error message is still emitted. In the wild,
+    // it should be unlikely for such an error to produce an error message
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Hello World!")`
+    );
+  })
 });
