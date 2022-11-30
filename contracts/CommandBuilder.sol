@@ -21,7 +21,7 @@ library CommandBuilder {
 
         uint256 count; // Number of bytes in whole ABI encoded message
         uint256 free; // Pointer to first free byte in tail part of message
-        uint256[] memory offsets = new uint256[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
+        uint256[] memory dynamicLengths = new uint256[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
 
         bytes memory stateData; // Optionally encode the current state if the call requires it
 
@@ -43,9 +43,9 @@ library CommandBuilder {
                         count += stateData.length;
                     }
                 } else if (idx == IDX_ARRAY_START) {
-                    (offsets, offsetIdx, count, i) = setupDynamicArray(state, indices, offsets, offsetIdx, count, i);
+                    (dynamicLengths, offsetIdx, count, i) = setupDynamicArray(state, indices, dynamicLengths, offsetIdx, count, i);
                 } else if (idx == IDX_TUPLE_START) {
-                    (offsets, offsetIdx, count, i) = setupDynamicTuple(state, indices, offsets, offsetIdx, count, i);
+                    (dynamicLengths, offsetIdx, count, i) = setupDynamicTuple(state, indices, dynamicLengths, offsetIdx, count, i);
                 } else {
                     count = setupDynamicVariable(state, count, idx);
                 }
@@ -82,7 +82,7 @@ library CommandBuilder {
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
-                    (offsetIdx, free, , i) = encodeDynamicArray(ret, state, indices, offsets, offsetIdx, free, i);
+                    (offsetIdx, free, , i) = encodeDynamicArray(ret, state, indices, dynamicLengths, offsetIdx, free, i);
                     unchecked {
                         count += 32;
                     }
@@ -91,7 +91,7 @@ library CommandBuilder {
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
-                    (offsetIdx, free, , i) = encodeDynamicTuple(ret, state, indices, offsets, offsetIdx, free, i);
+                    (offsetIdx, free, , i) = encodeDynamicTuple(ret, state, indices, dynamicLengths, offsetIdx, free, i);
                     unchecked {
                         count += 32;
                     }
@@ -166,7 +166,7 @@ library CommandBuilder {
     function setupDynamicArray(
         bytes[] memory state,
         bytes32 indices,
-        uint256[] memory offsets,
+        uint256[] memory dynamicLengths,
         uint256 offsetIdx,
         uint256 count,
         uint256 i
@@ -181,13 +181,13 @@ library CommandBuilder {
             state[idx & IDX_VALUE_MASK].length == 32,
             "Array length must be 32 bytes"
         );
-        return setupDynamicTuple(state, indices, offsets, offsetIdx, count, i);
+        return setupDynamicTuple(state, indices, dynamicLengths, offsetIdx, count, i);
     }
 
     function setupDynamicTuple(
         bytes[] memory state,
         bytes32 indices,
-        uint256[] memory offsets,
+        uint256[] memory dynamicLengths,
         uint256 offsetIdx,
         uint256 count,
         uint256 i
@@ -205,13 +205,13 @@ library CommandBuilder {
             idx = uint8(indices[i]);
             if (idx & IDX_VARIABLE_LENGTH != 0) {
                 if (idx == IDX_DYNAMIC_END) {
-                    offsets[offsetIdx] = offset;
+                    dynamicLengths[offsetIdx] = offset;
                     // Return
-                    return (offsets, nextOffsetIdx, count, i);
+                    return (dynamicLengths, nextOffsetIdx, count, i);
                 } else if (idx == IDX_ARRAY_START) {
-                    (offsets, nextOffsetIdx, count, i) = setupDynamicArray(state, indices, offsets, nextOffsetIdx, count, i);
+                    (dynamicLengths, nextOffsetIdx, count, i) = setupDynamicArray(state, indices, dynamicLengths, nextOffsetIdx, count, i);
                 } else if (idx == IDX_TUPLE_START) {
-                    (offsets, nextOffsetIdx, count, i) = setupDynamicTuple(state, indices, offsets, nextOffsetIdx, count, i);
+                    (dynamicLengths, nextOffsetIdx, count, i) = setupDynamicTuple(state, indices, dynamicLengths, nextOffsetIdx, count, i);
                 } else {
                     count = setupDynamicVariable(state, count, idx);
                 }
@@ -223,14 +223,14 @@ library CommandBuilder {
                 ++i;
             }
         }
-        return (offsets, nextOffsetIdx, count, i);
+        return (dynamicLengths, nextOffsetIdx, count, i);
     }
 
     function encodeDynamicArray(
         bytes memory ret,
         bytes[] memory state,
         bytes32 indices,
-        uint256[] memory offsets,
+        uint256[] memory dynamicLengths,
         uint256 offsetIdx,
         uint256 free,
         uint256 i
@@ -249,7 +249,7 @@ library CommandBuilder {
             free += 32;
         }
         uint256 length;
-        (offsetIdx, free, length, i) = encodeDynamicTuple(ret, state, indices, offsets, offsetIdx, free, i);
+        (offsetIdx, free, length, i) = encodeDynamicTuple(ret, state, indices, dynamicLengths, offsetIdx, free, i);
         unchecked {
             length += 32; // Increase length to account for array length metadata
         }
@@ -260,14 +260,14 @@ library CommandBuilder {
         bytes memory ret,
         bytes[] memory state,
         bytes32 indices,
-        uint256[] memory offsets,
+        uint256[] memory dynamicLengths,
         uint256 offsetIdx,
         uint256 free,
         uint256 i
     ) internal view returns (uint256, uint256, uint256, uint256) {
         uint256 idx;
         uint256 length; // The number of bytes in this tuple
-        uint256 offset = offsets[offsetIdx]; // The current offset location
+        uint256 offset = dynamicLengths[offsetIdx]; // The current offset location
         uint256 pointer = offset; // The current pointer for dynamic types
         unchecked {
             offset += free; // Update the offset location
@@ -285,7 +285,7 @@ library CommandBuilder {
                         mstore(add(add(ret, 36), free), pointer)
                     }
                     uint256 argLen;
-                    (offsetIdx, offset, argLen, i) = encodeDynamicArray(ret, state, indices, offsets, offsetIdx, offset, i);
+                    (offsetIdx, offset, argLen, i) = encodeDynamicArray(ret, state, indices, dynamicLengths, offsetIdx, offset, i);
                     unchecked {
                         pointer += argLen;
                         length += (argLen + 32); // data + pointer
@@ -297,7 +297,7 @@ library CommandBuilder {
                         mstore(add(add(ret, 36), free), pointer)
                     }
                     uint256 argLen;
-                    (offsetIdx, offset, argLen, i) = encodeDynamicTuple(ret, state, indices, offsets, offsetIdx, offset, i);
+                    (offsetIdx, offset, argLen, i) = encodeDynamicTuple(ret, state, indices, dynamicLengths, offsetIdx, offset, i);
                     unchecked {
                         pointer += argLen;
                         length += (argLen + 32); // data + pointer
