@@ -141,9 +141,8 @@ library CommandBuilder {
             "Static state variables must be 32 bytes"
         );
         unchecked {
-            count += 32;
+            return count + 32;
         }
-        return count;
     }
 
     function setupDynamicVariable(
@@ -158,9 +157,8 @@ library CommandBuilder {
             "Dynamic state variables must be a multiple of 32 bytes"
         );
         unchecked {
-            count += argLen + 32;
+            return count + argLen + 32;
         }
-        return count;
     }
 
     function setupDynamicArray(
