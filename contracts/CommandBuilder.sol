@@ -75,7 +75,6 @@ library CommandBuilder {
                     memcpy(stateData, 32, ret, free + 4, stateData.length - 32);
                     unchecked {
                         free += stateData.length - 32;
-                        count += 32;
                     }
                 } else if (idx == IDX_ARRAY_START) {
                     // Start of dynamic type, put pointer in current slot
@@ -83,18 +82,12 @@ library CommandBuilder {
                         mstore(add(add(ret, 36), count), free)
                     }
                     (offsetIdx, free, , i) = encodeDynamicArray(ret, state, indices, dynamicLengths, offsetIdx, free, i);
-                    unchecked {
-                        count += 32;
-                    }
                 } else if (idx == IDX_TUPLE_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
                     (offsetIdx, free, , i) = encodeDynamicTuple(ret, state, indices, dynamicLengths, offsetIdx, free, i);
-                    unchecked {
-                        count += 32;
-                    }
                 } else {
                     // Variable length data
                     uint256 argLen = state[idx & IDX_VALUE_MASK].length;
@@ -111,7 +104,6 @@ library CommandBuilder {
                     );
                     unchecked {
                         free += argLen;
-                        count += 32;
                     }
                 }
             } else {
@@ -121,11 +113,9 @@ library CommandBuilder {
                 assembly {
                     mstore(add(add(ret, 36), count), mload(add(stateVar, 32)))
                 }
-                unchecked {
-                    count += 32;
-                }
             }
             unchecked {
+                count += 32;
                 ++i;
             }
         }
