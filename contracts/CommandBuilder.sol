@@ -42,12 +42,16 @@ library CommandBuilder {
                     unchecked {
                         count += stateData.length;
                     }
-                } else if (idx == IDX_ARRAY_START) {
-                    (dynamicLengths, offsetIdx, count, i) = setupDynamicArray(state, indices, dynamicLengths, offsetIdx, count, i);
-                } else if (idx == IDX_TUPLE_START) {
-                    (dynamicLengths, offsetIdx, count, i) = setupDynamicTuple(state, indices, dynamicLengths, offsetIdx, count, i);
                 } else {
-                    count = setupDynamicVariable(state, count, idx);
+                    (dynamicLengths, offsetIdx, count, i) = setupDynamicType(
+                        state,
+                        indices,
+                        dynamicLengths,
+                        idx,
+                        offsetIdx,
+                        count,
+                        i
+                    );
                 }
             } else {
                 count = setupStaticVariable(state, count, idx);
@@ -151,6 +155,46 @@ library CommandBuilder {
         }
     }
 
+    function setupDynamicType(
+        bytes[] memory state,
+        bytes32 indices,
+        uint256[] memory dynamicLengths,
+        uint256 idx,
+        uint256 offsetIdx,
+        uint256 count,
+        uint256 index
+    ) internal view returns (
+        uint256[] memory newDynamicLengths,
+        uint256 newOffsetIdx,
+        uint256 newCount,
+        uint256 newIndex
+    ) {
+        if (idx == IDX_ARRAY_START) {
+            (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicArray(
+                state,
+                indices,
+                dynamicLengths,
+                offsetIdx,
+                count,
+                index
+            );
+        } else if (idx == IDX_TUPLE_START) {
+            (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicTuple(
+                state,
+                indices,
+                dynamicLengths,
+                offsetIdx,
+                count,
+                index
+            );
+        } else {
+            newDynamicLengths = dynamicLengths;
+            newOffsetIdx = offsetIdx;
+            newIndex = index;
+            newCount = setupDynamicVariable(state, count, idx);
+        }
+    }
+
     function setupDynamicArray(
         bytes[] memory state,
         bytes32 indices,
@@ -196,12 +240,16 @@ library CommandBuilder {
                     dynamicLengths[offsetIdx] = offset;
                     // Return
                     return (dynamicLengths, nextOffsetIdx, count, i);
-                } else if (idx == IDX_ARRAY_START) {
-                    (dynamicLengths, nextOffsetIdx, count, i) = setupDynamicArray(state, indices, dynamicLengths, nextOffsetIdx, count, i);
-                } else if (idx == IDX_TUPLE_START) {
-                    (dynamicLengths, nextOffsetIdx, count, i) = setupDynamicTuple(state, indices, dynamicLengths, nextOffsetIdx, count, i);
                 } else {
-                    count = setupDynamicVariable(state, count, idx);
+                    (dynamicLengths, nextOffsetIdx, count, i) = setupDynamicType(
+                        state,
+                        indices,
+                        dynamicLengths,
+                        idx,
+                        nextOffsetIdx,
+                        count,
+                        i
+                    );
                 }
             } else {
                 count = setupStaticVariable(state, count, idx);
