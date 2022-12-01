@@ -1,6 +1,9 @@
 {
   "name": "@ensofinance/weiroll",
   "version": "1.4.1-alpha.1",
+  "engines": {
+    "node": ">=18"
+  },
   "devDependencies": {
     "@ensofinance/weiroll.js": "0.4.1-alpha.1",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
@@ -9,7 +12,7 @@
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.3.1",
-    "hardhat": "^2.8.4",
+    "hardhat": "^2.12.1-ir.0",
     "prettier": "^2.3.1",
     "prettier-plugin-solidity": "1.0.0-beta.24",
     "solhint-plugin-prettier": "^0.0.5",
