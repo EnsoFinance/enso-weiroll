@@ -456,6 +456,7 @@ library CommandBuilder {
             if (idx == IDX_USE_STATE) {
                 state = abi.decode(output, (bytes[]));
             } else {
+                require(idx & IDX_VALUE_MASK < state.length, "Index out-of-bounds");
                 // Check the first field is 0x20 (because we have only a single return value)
                 uint256 argPtr;
                 assembly {
@@ -477,6 +478,7 @@ library CommandBuilder {
                 }
             }
         } else {
+            require(idx & IDX_VALUE_MASK < state.length, "Index out-of-bounds");
             // Single word
             require(
                 output.length == 32,
