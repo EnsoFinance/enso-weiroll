@@ -111,7 +111,7 @@ library CommandBuilder {
                     }
                 }
             } else {
-                // Fixed length data
+                // Fixed length data (length previously checked to be 32 bytes)
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 // Write the data to current slot
                 assembly {
@@ -301,6 +301,7 @@ library CommandBuilder {
         }
         // Encode array length
         uint256 idx = uint8(indices[newIndex]);
+        // Array length value previously checked to be 32 bytes
         bytes memory stateVar = state[idx & IDX_VALUE_MASK];
         assembly {
             mstore(add(add(ret, 36), offset), mload(add(stateVar, 32)))
@@ -403,7 +404,7 @@ library CommandBuilder {
                     }
                 }
             } else {
-                // Fixed length data
+                // Fixed length data (length previously checked to be 32 bytes)
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 // Write to first free slot
                 assembly {
