@@ -67,14 +67,17 @@ library CommandBuilder {
         assembly {
             mstore(add(ret, 32), selector)
         }
-        count = 0;
         offsetIdx = 0;
+        // Use count to track current memory slot
+        assembly {
+            count := add(ret, 36)
+        }
         for (uint256 i; i < indicesLength; ) {
             idx = uint8(indices[i]);
             if (idx & IDX_VARIABLE_LENGTH != 0) {
                 if (idx == IDX_USE_STATE) {
                     assembly {
-                        mstore(add(add(ret, 36), count), free)
+                        mstore(count, free)
                     }
                     memcpy(stateData, 32, ret, free + 4, stateData.length - 32);
                     unchecked {
@@ -83,13 +86,13 @@ library CommandBuilder {
                 } else if (idx == IDX_ARRAY_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(add(add(ret, 36), count), free)
+                        mstore(count, free)
                     }
                     (offsetIdx, free, i, ) = encodeDynamicArray(ret, state, indices, dynamicLengths, offsetIdx, free, i);
                 } else if (idx == IDX_TUPLE_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(add(add(ret, 36), count), free)
+                        mstore(count, free)
                     }
                     (offsetIdx, free, i, ) = encodeDynamicTuple(ret, state, indices, dynamicLengths, offsetIdx, free, i);
                 } else {
@@ -97,7 +100,7 @@ library CommandBuilder {
                     uint256 argLen = state[idx & IDX_VALUE_MASK].length;
                     // Put a pointer in the current slot and write the data to first free slot
                     assembly {
-                        mstore(add(add(ret, 36), count), free)
+                        mstore(count, free)
                     }
                     memcpy(
                         state[idx & IDX_VALUE_MASK],
@@ -115,7 +118,7 @@ library CommandBuilder {
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 // Write the data to current slot
                 assembly {
-                    mstore(add(add(ret, 36), count), mload(add(stateVar, 32)))
+                    mstore(count, mload(add(stateVar, 32)))
                 }
             }
             unchecked {
@@ -342,6 +345,10 @@ library CommandBuilder {
             newOffsetIdx = offsetIdx + 1; // Progress to next offsetIdx
             newIndex = index + 1; // Progress to first index of the data
         }
+        // Use offset to track current memory slot
+        assembly {
+            offset := add(add(ret, 36), offset)
+        }
         while (newIndex < 32) {
             idx = uint8(indices[newIndex]);
             if (idx & IDX_VARIABLE_LENGTH != 0) {
@@ -350,7 +357,7 @@ library CommandBuilder {
                 } else if (idx == IDX_ARRAY_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(add(add(ret, 36), offset), pointer)
+                        mstore(offset, pointer)
                     }
                     (newOffsetIdx, newOffset, newIndex, argLen) = encodeDynamicArray(
                         ret,
@@ -368,7 +375,7 @@ library CommandBuilder {
                 } else if (idx == IDX_TUPLE_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(add(add(ret, 36), offset), pointer)
+                        mstore(offset, pointer)
                     }
                     (newOffsetIdx, newOffset, newIndex, argLen) = encodeDynamicTuple(
                         ret,
@@ -388,7 +395,7 @@ library CommandBuilder {
                     argLen = state[idx & IDX_VALUE_MASK].length;
                     // Put a pointer in the first current slot and write the data to the next offset slot
                     assembly {
-                        mstore(add(add(ret, 36), offset), pointer)
+                        mstore(offset, pointer)
                     }
                     memcpy(
                         state[idx & IDX_VALUE_MASK],
@@ -408,7 +415,7 @@ library CommandBuilder {
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 // Write to first free slot
                 assembly {
-                    mstore(add(add(ret, 36), offset), mload(add(stateVar, 32)))
+                    mstore(offset, mload(add(stateVar, 32)))
                 }
                 unchecked {
                     length += 32;
