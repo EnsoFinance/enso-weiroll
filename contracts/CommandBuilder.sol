@@ -396,7 +396,7 @@ library CommandBuilder {
         uint256 idx = uint8(index);
         if (idx == IDX_END_OF_ARGS) return;
 
-        bytes memory entry = state[idx] = new bytes(output.length + 32);
+        bytes memory entry = state[idx & IDX_VALUE_MASK] = new bytes(output.length + 32);
         memcpy(output, 0, entry, 32, output.length);
         assembly {
             let l := mload(output)
