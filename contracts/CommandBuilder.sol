@@ -305,33 +305,33 @@ library CommandBuilder {
         bytes32 indices,
         uint256[] memory dynamicLengths,
         uint256 offsetIdx,
-        uint256 offset,
+        uint256 currentSlot,
         uint256 index
     ) internal view returns (
         uint256 newOffsetIdx,
-        uint256 newOffset,
+        uint256 newSlot,
         uint256 newIndex,
         uint256 length
     ) {
         // Progress to array length metadata
         unchecked {
             newIndex = index + 1;
-            newOffset = offset + 32;
+            newSlot = currentSlot + 32;
         }
         // Encode array length
         uint256 idx = uint8(indices[newIndex]);
         // Array length value previously checked to be 32 bytes
         bytes memory stateVar = state[idx & IDX_VALUE_MASK];
         assembly {
-            mstore(add(add(ret, 36), offset), mload(add(stateVar, 32)))
+            mstore(add(add(ret, 36), currentSlot), mload(add(stateVar, 32)))
         }
-        (newOffsetIdx, newOffset, newIndex, length) = encodeDynamicTuple(
+        (newOffsetIdx, newSlot, newIndex, length) = encodeDynamicTuple(
             ret,
             state,
             indices,
             dynamicLengths,
             offsetIdx,
-            newOffset,
+            newSlot,
             newIndex
         );
         unchecked {
@@ -345,25 +345,25 @@ library CommandBuilder {
         bytes32 indices,
         uint256[] memory dynamicLengths,
         uint256 offsetIdx,
-        uint256 offset,
+        uint256 currentSlot,
         uint256 index
     ) internal view returns (
         uint256 newOffsetIdx,
-        uint256 newOffset,
+        uint256 newSlot,
         uint256 newIndex,
         uint256 length
     ) {
         uint256 idx;
         uint256 argLen;
-        uint256 pointer = dynamicLengths[offsetIdx]; // The current offset location
+        uint256 freePointer = dynamicLengths[offsetIdx]; // The pointer to the next free slot
         unchecked {
-            newOffset = offset + pointer; // Update the offset
+            newSlot = currentSlot + freePointer; // Update the next slot
             newOffsetIdx = offsetIdx + 1; // Progress to next offsetIdx
             newIndex = index + 1; // Progress to first index of the data
         }
-        // Use offset to track current memory slot
+        // Shift currentSlot to correct location in memory
         assembly {
-            offset := add(add(ret, 36), offset)
+            currentSlot := add(add(ret, 36), currentSlot)
         }
         while (newIndex < 32) {
             idx = uint8(indices[newIndex]);
@@ -373,56 +373,56 @@ library CommandBuilder {
                 } else if (idx == IDX_ARRAY_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(offset, pointer)
+                        mstore(currentSlot, freePointer)
                     }
-                    (newOffsetIdx, newOffset, newIndex, argLen) = encodeDynamicArray(
+                    (newOffsetIdx, newSlot, newIndex, argLen) = encodeDynamicArray(
                         ret,
                         state,
                         indices,
                         dynamicLengths,
                         newOffsetIdx,
-                        newOffset,
+                        newSlot,
                         newIndex
                     );
                     unchecked {
-                        pointer += argLen;
+                        freePointer += argLen;
                         length += (argLen + 32); // data + pointer
                     }
                 } else if (idx == IDX_TUPLE_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(offset, pointer)
+                        mstore(currentSlot, freePointer)
                     }
-                    (newOffsetIdx, newOffset, newIndex, argLen) = encodeDynamicTuple(
+                    (newOffsetIdx, newSlot, newIndex, argLen) = encodeDynamicTuple(
                         ret,
                         state,
                         indices,
                         dynamicLengths,
                         newOffsetIdx,
-                        newOffset,
+                        newSlot,
                         newIndex
                     );
                     unchecked {
-                        pointer += argLen;
+                        freePointer += argLen;
                         length += (argLen + 32); // data + pointer
                     }
                 } else  {
                     // Variable length data
                     argLen = state[idx & IDX_VALUE_MASK].length;
-                    // Put a pointer in the first current slot and write the data to the next offset slot
+                    // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(offset, pointer)
+                        mstore(currentSlot, freePointer)
                     }
                     memcpy(
                         state[idx & IDX_VALUE_MASK],
                         0,
                         ret,
-                        newOffset + 4,
+                        newSlot + 4,
                         argLen
                     );
                     unchecked {
-                        newOffset += argLen;
-                        pointer += argLen;
+                        newSlot += argLen;
+                        freePointer += argLen;
                         length += (argLen + 32); // data + pointer
                     }
                 }
@@ -431,14 +431,14 @@ library CommandBuilder {
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
                 // Write to first free slot
                 assembly {
-                    mstore(offset, mload(add(stateVar, 32)))
+                    mstore(currentSlot, mload(add(stateVar, 32)))
                 }
                 unchecked {
                     length += 32;
                 }
             }
             unchecked {
-                offset += 32;
+                currentSlot += 32;
                 ++newIndex;
             }
         }
