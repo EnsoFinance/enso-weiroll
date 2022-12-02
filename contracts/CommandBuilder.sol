@@ -88,13 +88,29 @@ library CommandBuilder {
                     assembly {
                         mstore(count, free)
                     }
-                    (offsetIdx, free, i, ) = encodeDynamicArray(ret, state, indices, dynamicLengths, offsetIdx, free, i);
+                    (offsetIdx, free, i, ) = encodeDynamicArray(
+                        ret,
+                        state,
+                        indices,
+                        dynamicLengths,
+                        offsetIdx,
+                        free,
+                        i
+                    );
                 } else if (idx == IDX_TUPLE_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
                         mstore(count, free)
                     }
-                    (offsetIdx, free, i, ) = encodeDynamicTuple(ret, state, indices, dynamicLengths, offsetIdx, free, i);
+                    (offsetIdx, free, i, ) = encodeDynamicTuple(
+                        ret,
+                        state,
+                        indices,
+                        dynamicLengths,
+                        offsetIdx,
+                        free,
+                        i
+                    );
                 } else {
                     // Variable length data
                     uint256 argLen = state[idx & IDX_VALUE_MASK].length;
