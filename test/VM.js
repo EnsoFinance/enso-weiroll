@@ -4,9 +4,6 @@ const weiroll = require("@ensofinance/weiroll.js");
 
 const deploy = async (name) => (await ethers.getContractFactory(name)).deploy();
 
-const deployLibrary = async (name) =>
-  weiroll.Contract.createLibrary(await deploy(name));
-
 const deployContract = async (name) =>
   weiroll.Contract.createContract(await deploy(name));
 
@@ -30,15 +27,14 @@ describe("VM", function () {
     token,
     payable;
   let supply = ethers.BigNumber.from("100000000000000000000");
-  let eventsContract, fallbackContract;
+  let eventsContract, fallbackContract, structContract;
 
   before(async () => {
-    math = await deployLibrary("Math");
-    strings = await deployLibrary("Strings");
-    struct = await deployLibrary("Struct");
-    arrays = await deployLibrary("Arrays");
-    sender = await deployLibrary("Sender");
-    revert = await deployLibrary("Revert");
+    math = await deployContract("Math");
+    strings = await deployContract("Strings");
+    arrays = await deployContract("Arrays");
+    sender = await deployContract("Sender");
+    revert = await deployContract("Revert");
     payable = await deployContract("Payable");
     stateTest = await deployContract("StateTest");
 
@@ -48,7 +44,10 @@ describe("VM", function () {
     fallback = weiroll.Contract.createContract(fallbackContract);
 
     eventsContract = await (await ethers.getContractFactory("Events")).deploy();
-    events = weiroll.Contract.createLibrary(eventsContract);
+    events = weiroll.Contract.createContract(eventsContract);
+
+    structContract = await (await ethers.getContractFactory("Struct")).deploy();
+    struct = weiroll.Contract.createContract(structContract);
 
     const VM = await ethers.getContractFactory("TestableVM");
     vm = await VM.deploy();
@@ -71,7 +70,6 @@ describe("VM", function () {
   }
 
   it("Should return msg.sender", async () => {
-    const [caller] = await ethers.getSigners();
     const planner = new weiroll.Planner();
     const msgSender = planner.add(sender.sender());
     planner.add(events.logAddress(msgSender));
@@ -80,15 +78,15 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogAddress")
-      .withArgs(caller.address);
+      .to.emit(eventsContract, "LogAddress")
+      .withArgs(vm.address);
 
     const receipt = await tx.wait();
     console.log(`Msg.sender: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should call fallback", async () => {
-    const commands = [[fallback, "", "0x2080ffffffffff", "0xff"]];
+    const commands = [[fallback, "", "0x2180ffffffffff", "0xff"]];
     const state = ["0x"];
 
     const tx = await execute(commands, state);
@@ -128,12 +126,12 @@ describe("VM", function () {
       [testString]
     );
 
-    const commands = [[events, "", "0x2080ffffffffff", "0xff"]];
+    const commands = [[events, "", "0x2180ffffffffff", "0xff"]];
     const state = [encodedFunctionCall];
 
     const tx = await execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .to.emit(eventsContract, "LogString")
       .withArgs(testString);
 
     const receipt = await tx.wait();
@@ -276,7 +274,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(eventsContract, "LogUint")
       .withArgs(55);
 
     const receipt = await tx.wait();
@@ -291,7 +289,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(eventsContract, "LogUint")
       .withArgs(13);
 
     const receipt = await tx.wait();
@@ -306,7 +304,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .to.emit(eventsContract, "LogString")
       .withArgs(testString + testString);
 
     const receipt = await tx.wait();
@@ -321,7 +319,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(eventsContract, "LogUint")
       .withArgs(6);
 
     const receipt = await tx.wait();
@@ -357,13 +355,13 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .to.emit(structContract, "LogString")
       .withArgs("Test");
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(3);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogAddress")
+      .to.emit(structContract, "LogAddress")
       .withArgs(token.address);
 
     const receipt = await tx.wait();
@@ -402,7 +400,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(3);
 
     const receipt = await tx.wait();
@@ -422,7 +420,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(10);
 
     const receipt = await tx.wait();
@@ -445,7 +443,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(20);
 
     const receipt = await tx.wait();
@@ -465,7 +463,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(eventsContract, "LogUint")
       .withArgs(30);
 
     const receipt = await tx.wait();
@@ -489,7 +487,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(20);
 
     const receipt = await tx.wait();
@@ -521,7 +519,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .to.emit(structContract, "LogString")
       .withArgs("Hello world!");
 
     const receipt = await tx.wait();
@@ -539,7 +537,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogString")
+      .to.emit(eventsContract, "LogString")
       .withArgs("Hello world! How are you?");
 
     const receipt = await tx.wait();
@@ -548,8 +546,8 @@ describe("VM", function () {
 
   it("Should pass and return raw state to functions", async () => {
     const commands = [
-      [stateTest, "addSlots", "0x00000102feffff", "0xfe"],
-      [events, "logUint", "0x0000ffffffffff", "0xff"],
+      [stateTest, "addSlots", "0x01000102feffff", "0xfe"],
+      [events, "logUint", "0x0100ffffffffff", "0xff"],
     ];
     const state = [
       // dest slot index
@@ -566,7 +564,7 @@ describe("VM", function () {
 
     const tx = await execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(eventsContract, "LogUint")
       .withArgs(
         "0x0000000000000000000000000000000000000000000000000000000000000003"
       );
