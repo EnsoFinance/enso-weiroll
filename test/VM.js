@@ -453,7 +453,7 @@ describe("VM", function () {
     
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(3);
 
     const receipt = await tx.wait();
@@ -602,7 +602,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .to.emit(structContract, "LogUint")
       .withArgs(42);
 
     const receipt = await tx.wait();
