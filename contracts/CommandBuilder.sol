@@ -286,6 +286,7 @@ library CommandBuilder {
                     // explicit return saves gas ¯\_(ツ)_/¯
                     return (newDynamicLengths, newOffsetIdx, newCount, newIndex);
                 } else {
+                    require(idx != IDX_USE_STATE, "Cannot use state from inside dynamic type");
                     (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicType(
                         state,
                         indices,
