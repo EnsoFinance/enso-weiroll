@@ -91,7 +91,10 @@ abstract contract VM {
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
                 uint256 callEth;
-                bytes memory v = state[uint8(bytes1(indices))];
+                bytes memory v = state[
+                    uint8(bytes1(indices)) &
+                    CommandBuilder.IDX_VALUE_MASK
+                ];
                 assembly {
                     callEth := mload(add(v, 0x20))
                 }
@@ -105,9 +108,8 @@ abstract contract VM {
                             indices << 8 // skip value input
                         )
                         : state[
-                            uint8(
-                                bytes1(indices << 8) // first byte after value input
-                            ) & CommandBuilder.IDX_VALUE_MASK
+                            uint8(bytes1(indices << 8)) & // first byte after value input
+                            CommandBuilder.IDX_VALUE_MASK
                         ]
                 );
             } else {
