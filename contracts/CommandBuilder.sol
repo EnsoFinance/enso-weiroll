@@ -25,10 +25,10 @@ library CommandBuilder {
 
         bytes memory stateData; // Optionally encode the current state if the call requires it
 
-        uint256 indicesLength; // Number of indices
+        uint256 indicesLength = 32; // Number of indices, max of 32
 
         // Determine the length of the encoded data
-        for (uint256 i; i < 32; ) {
+        for (uint256 i; i < indicesLength; ) {
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) {
                 indicesLength = i;

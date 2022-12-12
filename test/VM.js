@@ -561,6 +561,56 @@ describe("VM", function () {
     console.log(`nested structs: ${receipt.gasUsed.toNumber()} gas`);
   });
 
+  it("Should pass return value to big struct", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnBigStruct(
+      {
+        a: result,
+        b: result,
+        c: result,
+        d: result,
+        e: result,
+        f: result,
+        g: result,
+        h: result,
+        i: result,
+        j: result,
+        k: result,
+        l: result,
+        m: result,
+        n: result,
+        o: result,
+        p: result,
+        q: result,
+        r: result,
+        s: result,
+        t: result,
+        u: result,
+        v: result,
+        w: result,
+        x: result,
+        y: result,
+        z: result,
+        aa: 42,
+        bb: result,
+        cc: result,
+        dd: result,
+        ee: result,
+        ff: result,
+      }
+    ));
+    const {commands, state} = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(42);
+
+    const receipt = await tx.wait();
+    console.log(`big struct: ${receipt.gasUsed.toNumber()} gas`);
+  });
+
   it("Should pass return value to array of dynamic strings", async () => {
     const planner = new weiroll.Planner();
     const result = planner.add(strings.strcat("Hello ", "world!"));
