@@ -163,12 +163,21 @@ library CommandBuilder {
         uint256 count,
         uint256 idx
     ) internal pure returns (uint256 newCount) {
-        // Add the length of the value, rounded up to the next word boundary, plus space for pointer and length
-        uint256 argLen = state[idx & IDX_VALUE_MASK].length;
+        bytes memory arg = state[idx & IDX_VALUE_MASK];
+        // Validate the length of the data in state is a multiple of 32
+        uint256 argLen = arg.length;
         require(
-            argLen % 32 == 0,
+            argLen != 0 && argLen % 32 == 0,
             "Dynamic state variables must be a multiple of 32 bytes"
         );
+        // Validate that the variable is properly encoded
+        uint256 size = uint256(bytes32(arg)); // Size should be the first bytes32 of the arg
+        // Remove size. The remaining data should be the bytes content
+        assembly {
+            arg := add(arg, 32)
+        }
+        require(size == arg.length, "Dynamic state variable incorrectly encoded");
+        // Add the length of the value, rounded up to the next word boundary, plus space for pointer and length
         unchecked {
             newCount = count + argLen + 32;
         }

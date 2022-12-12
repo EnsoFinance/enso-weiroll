@@ -110,9 +110,9 @@ contract Struct is Events, Math {
         uint256 timestamp
     )
         external
-        pure
         returns (bytes32)
     {
+        emit LogUint(dataStruct.amount);
         return dataStruct.id;
     }
 

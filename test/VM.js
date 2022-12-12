@@ -429,6 +429,39 @@ describe("VM", function () {
     console.log(`sum array struct: ${receipt.gasUsed.toNumber()} gas`);
   });
 
+  it("Should pass return value to complex struct", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(math.add(1, 2));
+    planner.add(struct.returnComplexStruct(
+      {
+        id: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada",
+        category: 1,
+        from: "0x1212121212121212121212121212121212121212",
+        to: "0x1313131313131313131313131313131313131313",
+        amount: result,
+        data: "0x"
+      },
+      {
+        from: "0x1414141414141414141414141414141414141414",
+        approvedFrom: false,
+        to: "0x1515151515151515151515151515151515151515",
+        approvedTo: false
+      },
+      1,
+      ethers.constants.MaxUint256
+    ));
+    
+    const {commands, state} = planner.plan();
+    
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(3);
+
+    const receipt = await tx.wait();
+    console.log(`complex struct: ${receipt.gasUsed.toNumber()} gas`);
+  })
+
   it("Should pass return value to multiarray struct", async () => {
     const planner = new weiroll.Planner();
     const result = planner.add(math.add(1, 2));
