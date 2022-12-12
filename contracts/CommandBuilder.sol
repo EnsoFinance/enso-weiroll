@@ -305,8 +305,7 @@ library CommandBuilder {
                 ++newIndex;
             }
         }
-        // explicit return saves gas ¯\_(ツ)_/¯
-        return (newDynamicLengths, newOffsetIdx, newCount, newIndex);
+        revert("Dynamic type was not properly closed");
     }
 
     function encodeDynamicArray(
