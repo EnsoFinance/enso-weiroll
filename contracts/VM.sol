@@ -90,14 +90,12 @@ abstract contract VM {
                             ]
                     );
             } else if (flags & FLAG_CT_MASK == FLAG_CT_VALUECALL) {
-                uint256 callEth;
                 bytes memory v = state[
                     uint8(bytes1(indices)) &
                     CommandBuilder.IDX_VALUE_MASK
                 ];
-                assembly {
-                    callEth := mload(add(v, 0x20))
-                }
+                require(v.length == 32, "Value must be 32 bytes");
+                uint256 callEth = uint256(bytes32(v));
                 (success, outData) = address(uint160(uint256(command))).call{ // target
                     value: callEth
                 }(
