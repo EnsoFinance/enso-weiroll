@@ -7,7 +7,7 @@ import "./CommandBuilder.sol";
 abstract contract VM {
     using CommandBuilder for bytes[];
 
-    uint256 constant FLAG_CT_DELEGATECALL = 0x00;
+    uint256 constant FLAG_CT_DELEGATECALL = 0x00; // Delegate call not currently supported
     uint256 constant FLAG_CT_CALL = 0x01;
     uint256 constant FLAG_CT_STATICCALL = 0x02;
     uint256 constant FLAG_CT_VALUECALL = 0x03;
@@ -48,21 +48,7 @@ abstract contract VM {
                 indices = bytes32(uint256(command << 40) | SHORT_COMMAND_FILL);
             }
 
-            if (flags & FLAG_CT_MASK == FLAG_CT_DELEGATECALL) {
-                (success, outData) = address(uint160(uint256(command))) // target
-                    .delegatecall(
-                        // inputs
-                        flags & FLAG_DATA == 0
-                            ? state.buildInputs(
-                                bytes4(command), // selector
-                                indices
-                            )
-                            : state[
-                                uint8(bytes1(indices)) &
-                                CommandBuilder.IDX_VALUE_MASK
-                            ]
-                    );
-            } else if (flags & FLAG_CT_MASK == FLAG_CT_CALL) {
+            if (flags & FLAG_CT_MASK == FLAG_CT_CALL) {
                 (success, outData) = address(uint160(uint256(command))).call( // target
                     // inputs
                     flags & FLAG_DATA == 0
