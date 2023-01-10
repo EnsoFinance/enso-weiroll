@@ -67,6 +67,41 @@ contract Struct is Events, Math {
       NestedStruct2 b;
     }
 
+    struct BigStruct {
+        uint256 a;
+        uint256 b;
+        uint256 c;
+        uint256 d;
+        uint256 e;
+        uint256 f;
+        uint256 g;
+        uint256 h;
+        uint256 i;
+        uint256 j;
+        uint256 k;
+        uint256 l;
+        uint256 m;
+        uint256 n;
+        uint256 o;
+        uint256 p;
+        uint256 q;
+        uint256 r;
+        uint256 s;
+        uint256 t;
+        uint256 u;
+        uint256 v;
+        uint256 w;
+        uint256 x;
+        uint256 y;
+        uint256 z;
+        uint256 aa;
+        uint256 bb;
+        uint256 cc;
+        uint256 dd;
+        uint256 ee;
+        uint256 ff;
+    }
+
 
     function returnStringStruct(StringStruct memory values)
         external
@@ -110,9 +145,9 @@ contract Struct is Events, Math {
         uint256 timestamp
     )
         external
-        pure
         returns (bytes32)
     {
+        emit LogUint(dataStruct.amount);
         return dataStruct.id;
     }
 
@@ -175,5 +210,10 @@ contract Struct is Events, Math {
         uint256 total = sum(sums);
         emit LogUint(total);
         return total;
+    }
+
+    function returnBigStruct(BigStruct memory bigStruct) external returns (uint256) {
+        emit LogUint(bigStruct.aa);
+        return bigStruct.aa;
     }
 }

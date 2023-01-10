@@ -411,4 +411,18 @@ describe("CommandBuilder", function () {
 
     expect(tx).to.deep.equal([precoded, output]);
   });
+
+  it("Should revert because index is out-of-bounds", async () => {
+    let state = [
+      "0x000000000000000000000000000000000000000000000000000000000000000a",
+      "0x1111111111111111111111111111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222222222222222222222222222",
+    ];
+
+    let index = "0x83";
+
+    let output = abi.encode(["uint[]"], [[1, 2, 3]]);
+
+   await expect(cbh.testWriteOutputs(state, index, output)).to.be.revertedWith("Index out-of-bounds");
+  });
 });
