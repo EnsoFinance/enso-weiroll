@@ -7,8 +7,9 @@ library CommandBuilder {
     uint256 constant IDX_VALUE_MASK = 0x7f;
     uint256 constant IDX_END_OF_ARGS = 0xff;
     uint256 constant IDX_USE_STATE = 0xfe;
-    uint256 constant IDX_DYNAMIC_START = 0xfd;
-    uint256 constant IDX_DYNAMIC_END = 0xfc;
+    uint256 constant IDX_ARRAY_START = 0xfd;
+    uint256 constant IDX_TUPLE_START = 0xfc;
+    uint256 constant IDX_DYNAMIC_END = 0xfb;
 
     function buildInputs(
         bytes[] memory state,
@@ -16,19 +17,18 @@ library CommandBuilder {
         bytes32 indices
     ) internal view returns (bytes memory ret) {
         uint256 idx; // The current command index
-        uint256 offsetIdx; // The index of the current offset
+        uint256 offsetIdx; // The index of the current free offset
 
         uint256 count; // Number of bytes in whole ABI encoded message
         uint256 free; // Pointer to first free byte in tail part of message
-        uint256 offset; // Pointer to the first free byte for variable length data inside dynamic types
+        uint256[] memory dynamicLengths = new uint256[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
 
-        uint256[] memory offsets = new uint256[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
         bytes memory stateData; // Optionally encode the current state if the call requires it
 
-        uint256 indicesLength; // Number of indices
+        uint256 indicesLength = 32; // Number of indices, max of 32
 
         // Determine the length of the encoded data
-        for (uint256 i; i < 32; ) {
+        for (uint256 i; i < indicesLength; ) {
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) {
                 indicesLength = i;
@@ -40,63 +40,24 @@ library CommandBuilder {
                         stateData = abi.encode(state);
                     }
                     unchecked {
-                        free += 32;
                         count += stateData.length;
                     }
-                } else if (idx == IDX_DYNAMIC_START) {
-                    offset = 1; // Semantically overloading the offset to work as a boolean
-                } else if (idx == IDX_DYNAMIC_END) {
-                    unchecked {
-                        offsets[offsetIdx] = offset - 1; // Remove 1 that was set at the start of the dynamic type, to get correct offset length
-                    }
-                    offset = 0;
-                    // Increase count and free for dynamic type pointer
-                    unchecked {
-                        offsetIdx++;
-                        free += 32;
-                        count += 32;
-                    }
                 } else {
-                    // Add the size of the value, rounded up to the next word boundary, plus space for pointer and length
-                    uint256 argLen = state[idx & IDX_VALUE_MASK].length;
-                    require(
-                        argLen % 32 == 0,
-                        "Dynamic state variables must be a multiple of 32 bytes"
+                    (dynamicLengths, offsetIdx, count, i) = setupDynamicType(
+                        state,
+                        indices,
+                        dynamicLengths,
+                        idx,
+                        offsetIdx,
+                        count,
+                        i
                     );
-                    unchecked {
-                        count += argLen + 32;
-                    }
-                    if (offset != 0) {
-                        // Increase offset size
-                        unchecked {
-                            offset += 32;
-                        }
-                    } else {
-                        // Progress next free slot
-                        unchecked {
-                            free += 32;
-                        }
-                    }
                 }
             } else {
-                require(
-                    state[idx & IDX_VALUE_MASK].length == 32,
-                    "Static state variables must be 32 bytes"
-                );
-                unchecked {
-                    count += 32;
-                }
-                if (offset != 0) {
-                    unchecked {
-                        offset += 32;
-                    }
-                } else {
-                    unchecked {
-                        free += 32;
-                    }
-                }
+                count = setupStaticVariable(state, count, idx);
             }
             unchecked {
+                free += 32;
                 ++i;
             }
         }
@@ -106,99 +67,388 @@ library CommandBuilder {
         assembly {
             mstore(add(ret, 32), selector)
         }
-        count = 0;
         offsetIdx = 0;
+        // Use count to track current memory slot
+        assembly {
+            count := add(ret, 36)
+        }
         for (uint256 i; i < indicesLength; ) {
             idx = uint8(indices[i]);
             if (idx & IDX_VARIABLE_LENGTH != 0) {
                 if (idx == IDX_USE_STATE) {
                     assembly {
-                        mstore(add(add(ret, 36), count), free)
+                        mstore(count, free)
                     }
                     memcpy(stateData, 32, ret, free + 4, stateData.length - 32);
                     unchecked {
                         free += stateData.length - 32;
-                        count += 32;
                     }
-                } else if (idx == IDX_DYNAMIC_START) {
+                } else if (idx == IDX_ARRAY_START) {
                     // Start of dynamic type, put pointer in current slot
                     assembly {
-                        mstore(add(add(ret, 36), count), free)
+                        mstore(count, free)
                     }
-                    unchecked {
-                        offset = free + offsets[offsetIdx];
-                        count += 32;
+                    (offsetIdx, free, i, ) = encodeDynamicArray(
+                        ret,
+                        state,
+                        indices,
+                        dynamicLengths,
+                        offsetIdx,
+                        free,
+                        i
+                    );
+                } else if (idx == IDX_TUPLE_START) {
+                    // Start of dynamic type, put pointer in current slot
+                    assembly {
+                        mstore(count, free)
                     }
-                } else if (idx == IDX_DYNAMIC_END) {
-                    offset = 0;
-                    unchecked {
-                        offsetIdx++;
-                    }
+                    (offsetIdx, free, i, ) = encodeDynamicTuple(
+                        ret,
+                        state,
+                        indices,
+                        dynamicLengths,
+                        offsetIdx,
+                        free,
+                        i
+                    );
                 } else {
                     // Variable length data
                     uint256 argLen = state[idx & IDX_VALUE_MASK].length;
-
-                    if (offset != 0) {
-                        // Part of dynamic type; put a pointer in the first free slot and write the data to the offset free slot
-                        uint256 pointer = offsets[offsetIdx];
-                        assembly {
-                            mstore(add(add(ret, 36), free), pointer)
-                        }
-                        unchecked {
-                            free += 32;
-                        }
-                        memcpy(
-                            state[idx & IDX_VALUE_MASK],
-                            0,
-                            ret,
-                            offset + 4,
-                            argLen
-                        );
-                        unchecked {
-                            offsets[offsetIdx] += argLen;
-                            offset += argLen;
-                        }
-                    } else {
-                        // Put a pointer in the current slot and write the data to first free slot
-                        assembly {
-                            mstore(add(add(ret, 36), count), free)
-                        }
-                        memcpy(
-                            state[idx & IDX_VALUE_MASK],
-                            0,
-                            ret,
-                            free + 4,
-                            argLen
-                        );
-                        unchecked {
-                            free += argLen;
-                            count += 32;
-                        }
+                    // Put a pointer in the current slot and write the data to first free slot
+                    assembly {
+                        mstore(count, free)
+                    }
+                    memcpy(
+                        state[idx & IDX_VALUE_MASK],
+                        0,
+                        ret,
+                        free + 4,
+                        argLen
+                    );
+                    unchecked {
+                        free += argLen;
                     }
                 }
             } else {
-                // Fixed length data
+                // Fixed length data (length previously checked to be 32 bytes)
                 bytes memory stateVar = state[idx & IDX_VALUE_MASK];
-                if (offset != 0) {
-                    // Part of dynamic type; write to first free slot
-                    assembly {
-                        mstore(add(add(ret, 36), free), mload(add(stateVar, 32)))
-                    }
-                    unchecked {
-                        free += 32;
-                    }
-                } else {
-                    // Write the data to current slot
-                    assembly {
-                        mstore(add(add(ret, 36), count), mload(add(stateVar, 32)))
-                    }
-                    unchecked {
-                        count += 32;
-                    }
+                // Write the data to current slot
+                assembly {
+                    mstore(count, mload(add(stateVar, 32)))
                 }
             }
             unchecked {
+                count += 32;
                 ++i;
+            }
+        }
+    }
+
+    function setupStaticVariable(
+        bytes[] memory state,
+        uint256 count,
+        uint256 idx
+    ) internal pure returns (uint256 newCount) {
+        require(
+            state[idx & IDX_VALUE_MASK].length == 32,
+            "Static state variables must be 32 bytes"
+        );
+        unchecked {
+            newCount = count + 32;
+        }
+    }
+
+    function setupDynamicVariable(
+        bytes[] memory state,
+        uint256 count,
+        uint256 idx
+    ) internal pure returns (uint256 newCount) {
+        bytes memory arg = state[idx & IDX_VALUE_MASK];
+        // Validate the length of the data in state is a multiple of 32
+        uint256 argLen = arg.length;
+        require(
+            argLen != 0 && argLen % 32 == 0,
+            "Dynamic state variables must be a multiple of 32 bytes"
+        );
+        // Validate that the variable is properly encoded
+        uint256 size = uint256(bytes32(arg)); // Size should be the first bytes32 of the arg
+        // Remove size. The remaining data should be the bytes content
+        assembly {
+            arg := add(arg, 32)
+        }
+        require(size == arg.length, "Dynamic state variable incorrectly encoded");
+        // Add the length of the value, rounded up to the next word boundary, plus space for pointer and length
+        unchecked {
+            newCount = count + argLen + 32;
+        }
+    }
+
+    function setupDynamicType(
+        bytes[] memory state,
+        bytes32 indices,
+        uint256[] memory dynamicLengths,
+        uint256 idx,
+        uint256 offsetIdx,
+        uint256 count,
+        uint256 index
+    ) internal view returns (
+        uint256[] memory newDynamicLengths,
+        uint256 newOffsetIdx,
+        uint256 newCount,
+        uint256 newIndex
+    ) {
+        if (idx == IDX_ARRAY_START) {
+            (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicArray(
+                state,
+                indices,
+                dynamicLengths,
+                offsetIdx,
+                count,
+                index
+            );
+        } else if (idx == IDX_TUPLE_START) {
+            (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicTuple(
+                state,
+                indices,
+                dynamicLengths,
+                offsetIdx,
+                count,
+                index
+            );
+        } else {
+            newDynamicLengths = dynamicLengths;
+            newOffsetIdx = offsetIdx;
+            newIndex = index;
+            newCount = setupDynamicVariable(state, count, idx);
+        }
+    }
+
+    function setupDynamicArray(
+        bytes[] memory state,
+        bytes32 indices,
+        uint256[] memory dynamicLengths,
+        uint256 offsetIdx,
+        uint256 count,
+        uint256 index
+    ) internal view returns (
+        uint256[] memory newDynamicLengths,
+        uint256 newOffsetIdx,
+        uint256 newCount,
+        uint256 newIndex
+    ) {
+        // Current idx is IDX_ARRAY_START, next idx will contain the array length
+        unchecked {
+            newIndex = index + 1;
+            newCount = count + 32;
+        }
+        uint256 idx = uint8(indices[newIndex]);
+        require(
+            state[idx & IDX_VALUE_MASK].length == 32,
+            "Array length must be 32 bytes"
+        );
+        (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicTuple(
+            state,
+            indices,
+            dynamicLengths,
+            offsetIdx,
+            newCount,
+            newIndex
+        );
+    }
+
+    function setupDynamicTuple(
+        bytes[] memory state,
+        bytes32 indices,
+        uint256[] memory dynamicLengths,
+        uint256 offsetIdx,
+        uint256 count,
+        uint256 index
+    ) internal view returns (
+        uint256[] memory newDynamicLengths,
+        uint256 newOffsetIdx,
+        uint256 newCount,
+        uint256 newIndex
+    ) {
+        uint256 idx;
+        uint256 offset;
+        newDynamicLengths = dynamicLengths;
+        // Progress to first index of the data and progress the next offset idx
+        unchecked {
+            newIndex = index + 1;
+            newOffsetIdx = offsetIdx + 1;
+            newCount = count + 32;
+        }
+        while (newIndex < 32) {
+            idx = uint8(indices[newIndex]);
+            if (idx & IDX_VARIABLE_LENGTH != 0) {
+                if (idx == IDX_DYNAMIC_END) {
+                    newDynamicLengths[offsetIdx] = offset;
+                    // explicit return saves gas ¯\_(ツ)_/¯
+                    return (newDynamicLengths, newOffsetIdx, newCount, newIndex);
+                } else {
+                    require(idx != IDX_USE_STATE, "Cannot use state from inside dynamic type");
+                    (newDynamicLengths, newOffsetIdx, newCount, newIndex) = setupDynamicType(
+                        state,
+                        indices,
+                        newDynamicLengths,
+                        idx,
+                        newOffsetIdx,
+                        newCount,
+                        newIndex
+                    );
+                }
+            } else {
+                newCount = setupStaticVariable(state, newCount, idx);
+            }
+            unchecked {
+                offset += 32;
+                ++newIndex;
+            }
+        }
+        revert("Dynamic type was not properly closed");
+    }
+
+    function encodeDynamicArray(
+        bytes memory ret,
+        bytes[] memory state,
+        bytes32 indices,
+        uint256[] memory dynamicLengths,
+        uint256 offsetIdx,
+        uint256 currentSlot,
+        uint256 index
+    ) internal view returns (
+        uint256 newOffsetIdx,
+        uint256 newSlot,
+        uint256 newIndex,
+        uint256 length
+    ) {
+        // Progress to array length metadata
+        unchecked {
+            newIndex = index + 1;
+            newSlot = currentSlot + 32;
+        }
+        // Encode array length
+        uint256 idx = uint8(indices[newIndex]);
+        // Array length value previously checked to be 32 bytes
+        bytes memory stateVar = state[idx & IDX_VALUE_MASK];
+        assembly {
+            mstore(add(add(ret, 36), currentSlot), mload(add(stateVar, 32)))
+        }
+        (newOffsetIdx, newSlot, newIndex, length) = encodeDynamicTuple(
+            ret,
+            state,
+            indices,
+            dynamicLengths,
+            offsetIdx,
+            newSlot,
+            newIndex
+        );
+        unchecked {
+            length += 32; // Increase length to account for array length metadata
+        }
+    }
+
+    function encodeDynamicTuple(
+        bytes memory ret,
+        bytes[] memory state,
+        bytes32 indices,
+        uint256[] memory dynamicLengths,
+        uint256 offsetIdx,
+        uint256 currentSlot,
+        uint256 index
+    ) internal view returns (
+        uint256 newOffsetIdx,
+        uint256 newSlot,
+        uint256 newIndex,
+        uint256 length
+    ) {
+        uint256 idx;
+        uint256 argLen;
+        uint256 freePointer = dynamicLengths[offsetIdx]; // The pointer to the next free slot
+        unchecked {
+            newSlot = currentSlot + freePointer; // Update the next slot
+            newOffsetIdx = offsetIdx + 1; // Progress to next offsetIdx
+            newIndex = index + 1; // Progress to first index of the data
+        }
+        // Shift currentSlot to correct location in memory
+        assembly {
+            currentSlot := add(add(ret, 36), currentSlot)
+        }
+        while (newIndex < 32) {
+            idx = uint8(indices[newIndex]);
+            if (idx & IDX_VARIABLE_LENGTH != 0) {
+                if (idx == IDX_DYNAMIC_END) {
+                    break;
+                } else if (idx == IDX_ARRAY_START) {
+                    // Start of dynamic type, put pointer in current slot
+                    assembly {
+                        mstore(currentSlot, freePointer)
+                    }
+                    (newOffsetIdx, newSlot, newIndex, argLen) = encodeDynamicArray(
+                        ret,
+                        state,
+                        indices,
+                        dynamicLengths,
+                        newOffsetIdx,
+                        newSlot,
+                        newIndex
+                    );
+                    unchecked {
+                        freePointer += argLen;
+                        length += (argLen + 32); // data + pointer
+                    }
+                } else if (idx == IDX_TUPLE_START) {
+                    // Start of dynamic type, put pointer in current slot
+                    assembly {
+                        mstore(currentSlot, freePointer)
+                    }
+                    (newOffsetIdx, newSlot, newIndex, argLen) = encodeDynamicTuple(
+                        ret,
+                        state,
+                        indices,
+                        dynamicLengths,
+                        newOffsetIdx,
+                        newSlot,
+                        newIndex
+                    );
+                    unchecked {
+                        freePointer += argLen;
+                        length += (argLen + 32); // data + pointer
+                    }
+                } else  {
+                    // Variable length data
+                    argLen = state[idx & IDX_VALUE_MASK].length;
+                    // Start of dynamic type, put pointer in current slot
+                    assembly {
+                        mstore(currentSlot, freePointer)
+                    }
+                    memcpy(
+                        state[idx & IDX_VALUE_MASK],
+                        0,
+                        ret,
+                        newSlot + 4,
+                        argLen
+                    );
+                    unchecked {
+                        newSlot += argLen;
+                        freePointer += argLen;
+                        length += (argLen + 32); // data + pointer
+                    }
+                }
+            } else {
+                // Fixed length data (length previously checked to be 32 bytes)
+                bytes memory stateVar = state[idx & IDX_VALUE_MASK];
+                // Write to first free slot
+                assembly {
+                    mstore(currentSlot, mload(add(stateVar, 32)))
+                }
+                unchecked {
+                    length += 32;
+                }
+            }
+            unchecked {
+                currentSlot += 32;
+                ++newIndex;
             }
         }
     }
@@ -215,6 +465,7 @@ library CommandBuilder {
             if (idx == IDX_USE_STATE) {
                 state = abi.decode(output, (bytes[]));
             } else {
+                require(idx & IDX_VALUE_MASK < state.length, "Index out-of-bounds");
                 // Check the first field is 0x20 (because we have only a single return value)
                 uint256 argPtr;
                 assembly {
@@ -236,6 +487,7 @@ library CommandBuilder {
                 }
             }
         } else {
+            require(idx & IDX_VALUE_MASK < state.length, "Index out-of-bounds");
             // Single word
             require(
                 output.length == 32,
@@ -253,10 +505,10 @@ library CommandBuilder {
         bytes1 index,
         bytes memory output
     ) internal view {
-        uint256 idx = uint256(uint8(index));
+        uint256 idx = uint8(index);
         if (idx == IDX_END_OF_ARGS) return;
 
-        bytes memory entry = state[idx] = new bytes(output.length + 32);
+        bytes memory entry = state[idx & IDX_VALUE_MASK] = new bytes(output.length + 32);
         memcpy(output, 0, entry, 32, output.length);
         assembly {
             let l := mload(output)

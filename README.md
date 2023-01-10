@@ -83,15 +83,25 @@ If `var == 0b10000000`, the indexed value is treated as variable-length, and `id
 
 The vm handles the "head" part of ABI-encoding and decoding for variable-length values, so the state elements for these should be the "tail" part of the encoding - for example, a string encodes as a 32 byte length field followed by the string data, padded to a 32-byte boundary, and an array of `uint`s is a 32 byte count followed by the concatenation of all the uints.
 
-There are two special values `idx` can equal to which modify the encoder behavior, specified in the below table:
+There are five special values `idx` can equal to which modify the encoder behavior, specified in the below table:
 
 ```
    ┌──────┬───────────────────┐
+   │ 0xfb │  DYNAMIC_END      │
+   ├──────┼───────────────────┤
+   │ 0xfc │  TUPLE_START      │
+   ├──────┼───────────────────┤
+   │ 0xfd │  ARRAY_START      │
+   ├──────┼───────────────────┤
    │ 0xfe │  USE_STATE        │
    ├──────┼───────────────────┤
    │ 0xff │  END_OF_ARGS      │
    └──────┴───────────────────┘
 ```
+
+If `idx` equals `ARRAY_START` it indicates that start of a dynamic array, and all indices that follow the flag are part of the dynamic array (until the `DYNAMIC_END` `idx` value is reached).
+
+When an `idx` equals `TUPLE_START` it indicates the start of a dynamic tuple and all indices that follow are part of the tuple. As with dynamic arrays, the `DYNAMIC_END` flag marks the end of the tuple.
 
 If `idx` equals `USE_STATE` inside of an `in` list byte, then the parameter at that position is constructed by feeding the entire state array into `abi.encode` and passing it to the function as a single argument. If it's specified as part of the `o` output target, then the output of that command is written directly to the state instead via `abi.decode`.
 

@@ -28,9 +28,9 @@ describe("Tuple", function () {
 
   it("Should perform a tuple return that's sliced before being fed to another function (first var)", async () => {
     const commands = [
-      [multiReturn, "intTuple", "0x80ffffffffffff", "0x00"],
-      [tupler, "extractElement", "0x008001ffffffff", "0x00"],
-      [multiReturn, "tupleConsumer", "0x0000ffffffffff", "0xff"]
+      [multiReturn, "intTuple", "0x81ffffffffffff", "0x00"],
+      [tupler, "extractElement", "0x018001ffffffff", "0x00"],
+      [multiReturn, "tupleConsumer", "0x0100ffffffffff", "0xff"]
     ];
 
     const state = [
@@ -41,7 +41,7 @@ describe("Tuple", function () {
     const tx = await execute(commands, state);
 
     await expect(tx)
-      .to.emit(multiReturn.attach(vm.address), "Calculated")
+      .to.emit(multiReturn, "Calculated")
       .withArgs(0xbad);
 
     const receipt = await tx.wait();
@@ -50,9 +50,9 @@ describe("Tuple", function () {
 
   it("Should perform a tuple return that's sliced before being fed to another function (second var)", async () => {
     const commands = [
-      [multiReturn, "intTuple", "0x80ffffffffffff", "0x00"],
-      [tupler, "extractElement","0x008001ffffffff", "0x00"],
-      [multiReturn, "tupleConsumer", "0x0000ffffffffff", "0xff"]
+      [multiReturn, "intTuple", "0x81ffffffffffff", "0x00"],
+      [tupler, "extractElement","0x018001ffffffff", "0x00"],
+      [multiReturn, "tupleConsumer", "0x0100ffffffffff", "0xff"]
     ];
 
     const state = [
@@ -63,7 +63,7 @@ describe("Tuple", function () {
     const tx = await execute(commands, state);
 
     await expect(tx)
-      .to.emit(multiReturn.attach(vm.address), "Calculated")
+      .to.emit(multiReturn, "Calculated")
       .withArgs(0xdeed);
 
     const receipt = await tx.wait();
