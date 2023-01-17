@@ -11,6 +11,10 @@ contract Revert {
         require(false, "Hello World!");
     }
 
+    function fail32ByteMessage() public pure {
+        require(false, "Hello World!!!!!!!!!!!!!!!!!!!!!");
+    }
+
     function assertFail() public pure returns (bool) {
         assert(false);
         return true;
@@ -31,5 +35,10 @@ contract Revert {
     // @dev This error duplicates the emitting of "Hello World!" error message using 3 uints
     function fakeErrorMessage() public pure {
         revert Log3Uints(32, 12, uint256(0x48656c6c6f20576f726c64210000000000000000000000000000000000000000));
+    }
+
+    //@dev The error uses the incorrect length when encoding "Hello World!"
+    function poorlyEncodedFakeErrorMessage() public pure {
+        revert Log3Uints(32, 13, uint256(0x48656c6c6f20576f726c64210000000000000000000000000000000000000000));
     }
 }

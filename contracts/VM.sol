@@ -104,6 +104,8 @@ abstract contract VM {
                 string memory message = "Unknown";
                 if (outData.length > 68) {
                     // This might be an error message, parse the outData
+                    // Estimate the bytes length of the possible error message
+                    uint256 estimatedLength = _estimateBytesLength(outData, 68);
                     // Remove selector. First 32 bytes should be a pointer that indicates the start of data in memory
                     assembly {
                         outData := add(outData, 4)
@@ -115,15 +117,17 @@ abstract contract VM {
                             outData := add(outData, 32)
                         }
                         uint256 size = uint256(bytes32(outData));
-                        // Remove size. The remaining data should be the string content
-                        assembly {
-                            outData := add(outData, 32)
-                        }
-                        // If the size variable is the same as the remaining bytes length, we can be fairly certain
+                        // If the size variable is the same as the estimated bytes length, we can be fairly certain
                         // this is a dynamic string, so convert the bytes to a string and emit the message. While an
                         // error function with 3 static parameters is capable of producing a similar output, there is
                         // low risk of a contract unintentionally emitting a message.
-                        if (size == outData.length) message = string(outData);
+                        if (size == estimatedLength) {
+                            // Remove size. The remaining data should be the string content
+                            assembly {
+                                outData := add(outData, 32)
+                            }
+                            message = string(outData);
+                        }
                     }
                 }
                 revert ExecutionFailed({
@@ -142,6 +146,21 @@ abstract contract VM {
             }
         }
         return state;
+    }
+
+    function _estimateBytesLength(bytes memory data, uint256 pos) internal pure returns (uint256 estimate) {
+        uint256 length = data.length;
+        estimate = length - pos; // Assume length equals alloted space
+        for (uint256 i = pos; i < length; ) {
+            if (data[i] == 0) {
+                // Zero bytes found, adjust estimated length
+                estimate = i - pos;
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function _uncheckedIncrement(uint256 i) private pure returns (uint256) {

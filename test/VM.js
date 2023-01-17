@@ -695,6 +695,17 @@ describe("VM", function () {
     );
   });
 
+  it("Should propagate revert reasons with exactly 32 bytes", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.fail32ByteMessage());
+    const { commands, state } = planner.plan();
+
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Hello World!!!!!!!!!!!!!!!!!!!!!")`
+    );
+  });
+
   it("Should revert on failing assert", async () => {
     const planner = new weiroll.Planner();
 
@@ -732,6 +743,17 @@ describe("VM", function () {
     const planner = new weiroll.Planner();
 
     planner.add(revert.uintError3());
+    const { commands, state } = planner.plan();
+
+    await expect(vm.execute(commands, state)).to.be.revertedWith(
+      `ExecutionFailed(0, "${revert.address}", "Unknown")`
+    );
+  })
+
+  it("Should revert with poorly encoded Error(uint256,uint256,uint256) as unknown", async () => {
+    const planner = new weiroll.Planner();
+
+    planner.add(revert.poorlyEncodedFakeErrorMessage());
     const { commands, state } = planner.plan();
 
     await expect(vm.execute(commands, state)).to.be.revertedWith(
