@@ -37,6 +37,7 @@ abstract contract VM {
         bytes memory outData;
 
         uint256 commandsLength = commands.length;
+        uint256 indicesLength;
         for (uint256 i; i < commandsLength; i = _uncheckedIncrement(i)) {
             command = commands[i];
             flags = uint256(uint8(bytes1(command << 32)));
@@ -44,8 +45,10 @@ abstract contract VM {
             if (flags & FLAG_EXTENDED_COMMAND != 0) {
                 i = _uncheckedIncrement(i);
                 indices = commands[i];
+                indicesLength = 32;
             } else {
                 indices = bytes32(uint256(command << 40) | SHORT_COMMAND_FILL);
+                indicesLength = 6;
             }
 
             if (flags & FLAG_CT_MASK == FLAG_CT_CALL) {
@@ -54,7 +57,8 @@ abstract contract VM {
                     flags & FLAG_DATA == 0
                         ? state.buildInputs(
                             bytes4(command), // selector
-                            indices
+                            indices,
+                            indicesLength
                         )
                         : state[
                             uint8(bytes1(indices)) &
@@ -68,7 +72,8 @@ abstract contract VM {
                         flags & FLAG_DATA == 0
                             ? state.buildInputs(
                                 bytes4(command), // selector
-                                indices
+                                indices,
+                                indicesLength
                             )
                             : state[
                                 uint8(bytes1(indices)) &
@@ -89,7 +94,8 @@ abstract contract VM {
                     flags & FLAG_DATA == 0
                         ? state.buildInputs(
                             bytes4(command), // selector
-                            indices << 8 // skip value input
+                            indices << 8, // skip value input
+                            indicesLength - 1 // max indices length reduced by value input
                         )
                         : state[
                             uint8(bytes1(indices << 8)) & // first byte after value input

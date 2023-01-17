@@ -14,7 +14,8 @@ library CommandBuilder {
     function buildInputs(
         bytes[] memory state,
         bytes4 selector,
-        bytes32 indices
+        bytes32 indices,
+        uint256 indicesLength
     ) internal view returns (bytes memory ret) {
         uint256 idx; // The current command index
         uint256 offsetIdx; // The index of the current free offset
@@ -24,8 +25,6 @@ library CommandBuilder {
         uint256[] memory dynamicLengths = new uint256[](10); // Optionally store the length of all dynamic types (a command cannot fit more than 10 dynamic types)
 
         bytes memory stateData; // Optionally encode the current state if the call requires it
-
-        uint256 indicesLength = 32; // Number of indices, max of 32
 
         // Determine the length of the encoded data
         for (uint256 i; i < indicesLength; ) {

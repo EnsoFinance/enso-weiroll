@@ -15,6 +15,7 @@ describe("CommandBuilder", function () {
   let struct;
   let fixed;
   let arrays;
+  let params;
   let abi = ethers.utils.defaultAbiCoder;
 
   before(async () => {
@@ -26,6 +27,7 @@ describe("CommandBuilder", function () {
     struct = await deployLibrary("Struct");
     fixed = await deployLibrary("Fixed");
     arrays = await deployLibrary("Arrays");
+    params = await deployLibrary("Params");
   });
 
   async function executeBuildInputs(commands, state, abiout, msg){
@@ -33,11 +35,14 @@ describe("CommandBuilder", function () {
         const c = commands[i]
         selector = ethers.utils.hexDataSlice(c, 0, 4);
         flags = ethers.utils.hexDataSlice(c, 4, 5);
+        let indicesLength;
         if (flags == "0x40") {
           i++;
           indices = commands[i];
+          indicesLength = 32;
         } else {
           indices = ethers.utils.hexConcat([ethers.utils.hexDataSlice(c, 5, 5+6), "0xffffffffffffffffffffffffffffffffffffffffffffffffffff"]);
+          indicesLength = 6;
         }
 
         target = ethers.utils.hexDataSlice(c, 5+6);
@@ -45,12 +50,14 @@ describe("CommandBuilder", function () {
         const txBaseGas = await cbh.estimateGas.testBuildInputsBaseGas(
           state,
           selector,
-          indices
+          indices,
+          indicesLength
         );
         const txGas = await cbh.estimateGas.testBuildInputs(
           state,
           selector,
-          indices
+          indices,
+          indicesLength
         );
         console.log(
           `buildInputs gas cost: ${txGas
@@ -59,7 +66,7 @@ describe("CommandBuilder", function () {
             .sub(txBaseGasNoArgs)
             .toNumber()} - total: ${txGas.toNumber()}`
         );
-        const result = await cbh.testBuildInputs(state, selector, indices);
+        const result = await cbh.testBuildInputs(state, selector, indices, indicesLength);
         expect(result).to.equal(selector + abiout.slice(2));
     }
   }
@@ -424,5 +431,70 @@ describe("CommandBuilder", function () {
     let output = abi.encode(["uint[]"], [[1, 2, 3]]);
 
    await expect(cbh.testWriteOutputs(state, index, output)).to.be.revertedWith("Index out-of-bounds");
+  });
+
+  it("Should build short command with 6 inputs", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [1, 2, 3, 4, 5, 6];
+
+    abiout = abi.encode(params.interface.getFunction("param6").inputs, args);
+
+    planner.add(params.param6(...args));
+
+    const { commands, state } = planner.plan();
+
+    expect(commands.length).to.equal(1)
+
+    await executeBuildInputs(commands, state, abiout, "Params.param6");
+  });
+
+  it("Should build extended command with 7 inputs", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [1, 2, 3, 4, 5, 6, 7];
+
+    abiout = abi.encode(params.interface.getFunction("param7").inputs, args);
+
+    planner.add(params.param7(...args));
+
+    const { commands, state } = planner.plan();
+
+    expect(commands.length).to.equal(2)
+
+    await executeBuildInputs(commands, state, abiout, "Params.param7");
+  });
+
+  it("Should build extended command with 32 inputs", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [1, 2, 3, 4, 5, 6, 7, 8 , 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32];
+
+    abiout = abi.encode(params.interface.getFunction("param32").inputs, args);
+
+    planner.add(params.param32(...args));
+
+    const { commands, state } = planner.plan();
+
+    expect(commands.length).to.equal(2)
+
+    await executeBuildInputs(commands, state, abiout, "Params.param32");
+  });
+
+  it("Should fail to build extended command with 33 inputs", async () => {
+    const planner = new weiroll.Planner();
+
+    let args = [1, 2, 3, 4, 5, 6, 7, 8 , 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33];
+
+    abiout = abi.encode(params.interface.getFunction("param33").inputs, args);
+
+    planner.add(params.param33(...args));
+    try {
+      const { commands, state } = planner.plan();
+      // This code should not be reached since the planner will fail
+      expect(true).to.equal(false)
+    } catch (e) {
+      expect(e.message).to.have.string('Invalid array length')
+    }
   });
 });

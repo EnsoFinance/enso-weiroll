@@ -25,7 +25,8 @@ describe("VM", function () {
     revert,
     fallback,
     token,
-    payable;
+    payable,
+    params;
   let supply = ethers.BigNumber.from("100000000000000000000");
   let eventsContract, fallbackContract, structContract;
 
@@ -36,6 +37,7 @@ describe("VM", function () {
     sender = await deployContract("Sender");
     revert = await deployContract("Revert");
     payable = await deployContract("Payable");
+    params = await deployContract("Params");
     stateTest = await deployContract("StateTest");
 
     fallbackContract = await (
@@ -323,7 +325,7 @@ describe("VM", function () {
       .withArgs(6);
 
     const receipt = await tx.wait();
-    console.log(`String concatenation: ${receipt.gasUsed.toNumber()} gas`);
+    console.log(`Math sum: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should execute payable function", async () => {
@@ -775,4 +777,33 @@ describe("VM", function () {
       `ExecutionFailed(0, "${revert.address}", "Hello World!")`
     );
   })
+
+  it("Should accept 32 inputs", async () => {
+    const planner = new weiroll.Planner();
+    const result = planner.add(params.param32(
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+    ));
+    planner.add(events.logUint(result));
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract, "LogUint")
+      .withArgs(528);
+  });
+
+  it("Should accept 31 inputs + value", async () => {
+    const amount = ethers.constants.WeiPerEther.mul(123);
+    const planner = new weiroll.Planner();
+    const result = planner.add(params.param31(
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+    ).withValue(amount));
+    planner.add(events.logUint(result));
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state, { value: amount });
+    await expect(tx)
+      .to.emit(eventsContract, "LogUint")
+      .withArgs(496);
+  });
 });
