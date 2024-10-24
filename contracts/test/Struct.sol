@@ -140,9 +140,9 @@ contract Struct is Events, Math {
 
     function returnComplexStruct(
         DataStruct memory dataStruct,
-        UserStruct memory userStruct,
-        uint256 amount,
-        uint256 timestamp
+        UserStruct memory,
+        uint256,
+        uint256
     )
         external
         returns (bytes32)

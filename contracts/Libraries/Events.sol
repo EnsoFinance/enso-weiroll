@@ -28,6 +28,10 @@ contract Events {
         emit LogUint(message);
     }
 
+    function logUintPayable(uint256 message) external payable {
+        emit LogUint(message);
+    }
+
     fallback() external payable virtual {
         if (msg.value > 0) emit LogUint(msg.value);
         if (msg.data.length  > 0) emit LogBytes(msg.data);
