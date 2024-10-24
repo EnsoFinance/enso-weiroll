@@ -7,51 +7,41 @@ const deploy = async (name) => (await ethers.getContractFactory(name)).deploy();
 const deployContract = async (name) =>
   weiroll.Contract.createContract(await deploy(name));
 
-describe("VM", function () {
+const deployLibrary = async (name) => 
+  weiroll.Contract.createLibrary(await deploy(name));
+
+describe("StatelessVM", function () {
   const testString = "Hello, world!";
-  const hexTestString = ethers.utils.hexlify(
-    ethers.utils.toUtf8Bytes(testString)
-  );
-  const testEtherAmount = ethers.constants.WeiPerEther.div(2);
 
   let events,
     vm,
     math,
     strings,
-    struct,
     arrays,
-    stateTest,
     sender,
     revert,
-    fallback,
     token,
     payable,
     params;
   let supply = ethers.BigNumber.from("100000000000000000000");
-  let eventsContract, fallbackContract, structContract;
+  let eventsContract, structContract;
 
   before(async () => {
-    math = await deployContract("Math");
-    strings = await deployContract("Strings");
-    arrays = await deployContract("Arrays");
-    sender = await deployContract("Sender");
-    revert = await deployContract("Revert");
+    math = await deployLibrary("Math");
+    strings = await deployLibrary("Strings");
+    arrays = await deployLibrary("Arrays");
+    sender = await deployLibrary("Sender");
+    revert = await deployLibrary("Revert");
     payable = await deployContract("Payable");
     params = await deployContract("Params");
-    stateTest = await deployContract("StateTest");
-
-    fallbackContract = await (
-      await ethers.getContractFactory("Fallback")
-    ).deploy();
-    fallback = weiroll.Contract.createContract(fallbackContract);
 
     eventsContract = await (await ethers.getContractFactory("Events")).deploy();
-    events = weiroll.Contract.createContract(eventsContract);
+    events = weiroll.Contract.createLibrary(eventsContract);
 
     structContract = await (await ethers.getContractFactory("Struct")).deploy();
-    struct = weiroll.Contract.createContract(structContract);
+    struct = weiroll.Contract.createLibrary(structContract);
 
-    const VM = await ethers.getContractFactory("TestableVM");
+    const VM = await ethers.getContractFactory("TestableStatelessVM");
     vm = await VM.deploy();
 
     token = await (
@@ -72,6 +62,7 @@ describe("VM", function () {
   }
 
   it("Should return msg.sender", async () => {
+    const [caller] = await ethers.getSigners();
     const planner = new weiroll.Planner();
     const msgSender = planner.add(sender.sender());
     planner.add(events.logAddress(msgSender));
@@ -80,186 +71,11 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogAddress")
-      .withArgs(vm.address);
+      .to.emit(eventsContract.attach(vm.address), "LogAddress")
+      .withArgs(caller.address);
 
     const receipt = await tx.wait();
     console.log(`Msg.sender: ${receipt.gasUsed.toNumber()} gas`);
-  });
-
-  it("Should call fallback", async () => {
-    const commands = [[fallback, "", "0x2180ffffffffff", "0xff"]];
-    const state = ["0x"];
-
-    const tx = await execute(commands, state);
-    await expect(tx).to.not.emit(
-      fallbackContract.attach(vm.address),
-      "LogBytes"
-    );
-
-    const receipt = await tx.wait();
-    console.log(`fallback: ${receipt.gasUsed.toNumber()} gas`);
-  });
-
-  it("Should call fallback with overriden msg.data and msg.value", async () => {
-    const commands = [[fallback, "", "0x230081ffffffff", "0xff"]];
-    const state = [
-      ethers.utils.hexZeroPad(testEtherAmount.toHexString(), "32"),
-      hexTestString,
-    ];
-
-    const tx = await execute(commands, state, { value: testEtherAmount });
-    await expect(tx)
-      .to.emit(fallbackContract, "LogUint")
-      .withArgs(testEtherAmount);
-    await expect(tx)
-      .to.emit(fallbackContract, "LogBytes")
-      .withArgs(hexTestString);
-
-    const receipt = await tx.wait();
-    console.log(
-      `fallback (override msg.value & msg.data): ${receipt.gasUsed.toNumber()} gas`
-    );
-  });
-
-  it("Should override msg.data to call a function", async () => {
-    const encodedFunctionCall = events.interface.encodeFunctionData(
-      "logString",
-      [testString]
-    );
-
-    const commands = [[events, "", "0x2180ffffffffff", "0xff"]];
-    const state = [encodedFunctionCall];
-
-    const tx = await execute(commands, state);
-    await expect(tx)
-      .to.emit(eventsContract, "LogString")
-      .withArgs(testString);
-
-    const receipt = await tx.wait();
-    console.log(
-      `events (override msg.data to call other function): ${receipt.gasUsed.toNumber()} gas`
-    );
-  });
-
-  it("Should override msg.data to call a function (js lib)", async () => {
-    const encodedFunctionCall = events.interface.encodeFunctionData(
-      "fallback",
-      [hexTestString]
-    );
-
-    const planner = new weiroll.Planner();
-    planner.add(
-      fallback[""](encodedFunctionCall).withValue(testEtherAmount.sub(10))
-    );
-    const { commands, state } = planner.plan();
-
-    const tx = await vm.execute(commands, state, { value: testEtherAmount });
-    await expect(tx)
-      .to.emit(fallbackContract, "LogUint")
-      .withArgs(testEtherAmount.sub(10));
-    await expect(tx)
-      .to.emit(fallbackContract, "LogBytes")
-      .withArgs(hexTestString);
-
-    const receipt = await tx.wait();
-    console.log(
-      `fallback (override msg.data to call other function - js lib): ${receipt.gasUsed.toNumber()} gas`
-    );
-  });
-
-  it("Should call fallback statically and forward return data", async () => {
-    const planner = new weiroll.Planner();
-
-    const msgData = planner.add(fallback[""]().staticcall());
-    planner.add(
-      weiroll.Contract.createContract(eventsContract)
-        [""](msgData)
-        .withValue(testEtherAmount)
-    );
-    const { commands, state } = planner.plan();
-
-    const tx = await vm.execute(commands, state, { value: testEtherAmount });
-    await expect(tx)
-      .to.emit(eventsContract, "LogUint")
-      .withArgs(testEtherAmount);
-    await expect(tx)
-      .to.emit(eventsContract, "LogBytes")
-      .withArgs(
-        ethers.utils.defaultAbiCoder.encode(
-          ["bytes32", "bytes32"],
-          [
-            ethers.utils.hexZeroPad(8, 32),
-            ethers.utils.formatBytes32String("fallback"),
-          ]
-        )
-      );
-
-    const receipt = await tx.wait();
-    console.log(`fallback (staticcall): ${receipt.gasUsed.toNumber()} gas`);
-  });
-
-  it("Should call fallback with overriden msg.data & msg.value and forward return data to another fallback", async () => {
-    const planner = new weiroll.Planner();
-
-    const msgData = planner.add(
-      fallback[""](hexTestString).withValue(testEtherAmount.sub(10))
-    );
-    planner.add(
-      weiroll.Contract.createContract(eventsContract)[""](msgData).withValue(10)
-    );
-    const { commands, state } = planner.plan();
-
-    const tx = await vm.execute(commands, state, { value: testEtherAmount });
-    await expect(tx)
-      .to.emit(fallbackContract, "LogUint")
-      .withArgs(testEtherAmount.sub(10));
-    await expect(tx)
-      .to.emit(fallbackContract, "LogBytes")
-      .withArgs(hexTestString);
-    await expect(tx).to.emit(eventsContract, "LogUint").withArgs(10);
-    await expect(tx)
-      .to.emit(eventsContract, "LogBytes")
-      .withArgs(
-        ethers.utils.defaultAbiCoder.encode(
-          ["bytes32", "bytes32"],
-          [
-            ethers.utils.hexZeroPad(8, 32),
-            ethers.utils.formatBytes32String("fallback"),
-          ]
-        )
-      );
-
-    const receipt = await tx.wait();
-    console.log(
-      `fallback (forward return data): ${receipt.gasUsed.toNumber()} gas`
-    );
-  });
-
-  it("Should call fallback with overriden msg.data & msg.value and forward return data to function *named* fallback", async () => {
-    const planner = new weiroll.Planner();
-
-    const msgData = planner.add(
-      fallback[""](hexTestString).withValue(testEtherAmount)
-    );
-    planner.add(
-      weiroll.Contract.createContract(eventsContract).fallback(msgData)
-    );
-    const { commands, state } = planner.plan();
-
-    const tx = await vm.execute(commands, state, { value: testEtherAmount });
-    await expect(tx)
-      .to.emit(fallbackContract, "LogUint")
-      .withArgs(testEtherAmount);
-    await expect(tx)
-      .to.emit(fallbackContract, "LogBytes")
-      .withArgs(hexTestString);
-    await expect(tx)
-      .to.emit(eventsContract, "LogBytes")
-      .withArgs(ethers.utils.hexlify(ethers.utils.toUtf8Bytes("fallback")));
-
-    const receipt = await tx.wait();
-    console.log(`fallback (named function): ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should execute a simple addition program", async () => {
@@ -276,7 +92,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogUint")
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
       .withArgs(55);
 
     const receipt = await tx.wait();
@@ -291,7 +107,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogUint")
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
       .withArgs(13);
 
     const receipt = await tx.wait();
@@ -306,7 +122,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogString")
+      .to.emit(eventsContract.attach(vm.address), "LogString")
       .withArgs(testString + testString);
 
     const receipt = await tx.wait();
@@ -321,7 +137,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogUint")
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
       .withArgs(6);
 
     const receipt = await tx.wait();
@@ -335,12 +151,12 @@ describe("VM", function () {
     planner.add(payable.pay().withValue(amount));
     const balance = planner.add(payable.balance());
     planner.add(
-     events.logUint(balance)
+      events.logUintPayable(balance)
     );
     const { commands, state } = planner.plan();
 
     const tx = await vm.execute(commands, state, { value: amount });
-    await expect(tx).to.emit(eventsContract, "LogUint").withArgs(amount);
+    await expect(tx).to.emit(eventsContract.attach(vm.address), "LogUint").withArgs(amount);
     expect(await ethers.provider.getBalance(payable.address)).to.be.equal(
       amount
     );
@@ -357,13 +173,13 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogString")
+      .to.emit(structContract.attach(vm.address), "LogString")
       .withArgs("Test");
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(3);
     await expect(tx)
-      .to.emit(structContract, "LogAddress")
+      .to.emit(structContract.attach(vm.address), "LogAddress")
       .withArgs(token.address);
 
     const receipt = await tx.wait();
@@ -402,7 +218,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(3);
 
     const receipt = await tx.wait();
@@ -422,7 +238,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(10);
 
     const receipt = await tx.wait();
@@ -455,7 +271,7 @@ describe("VM", function () {
     
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(3);
 
     const receipt = await tx.wait();
@@ -478,7 +294,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(20);
 
     const receipt = await tx.wait();
@@ -498,7 +314,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogUint")
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
       .withArgs(30);
 
     const receipt = await tx.wait();
@@ -522,7 +338,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(20);
 
     const receipt = await tx.wait();
@@ -554,7 +370,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogString")
+      .to.emit(structContract.attach(vm.address), "LogString")
       .withArgs("Hello world!");
 
     const receipt = await tx.wait();
@@ -604,7 +420,7 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(structContract, "LogUint")
+      .to.emit(structContract.attach(vm.address), "LogUint")
       .withArgs(42);
 
     const receipt = await tx.wait();
@@ -622,68 +438,11 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogString")
+      .to.emit(eventsContract.attach(vm.address), "LogString")
       .withArgs("Hello world! How are you?");
 
     const receipt = await tx.wait();
     console.log(`nested structs: ${receipt.gasUsed.toNumber()} gas`);
-  });
-
-  it("Should pass and return raw state to functions", async () => {
-    const commands = [
-      [stateTest, "addSlots", "0x01000102feffff", "0xfe"],
-      [events, "logUint", "0x0100ffffffffff", "0xff"],
-    ];
-    const state = [
-      // dest slot index
-      "0x0000000000000000000000000000000000000000000000000000000000000000",
-      // src1 slot index
-      "0x0000000000000000000000000000000000000000000000000000000000000003",
-      // src2 slot index
-      "0x0000000000000000000000000000000000000000000000000000000000000004",
-      // src1
-      "0x0000000000000000000000000000000000000000000000000000000000000001",
-      // src2
-      "0x0000000000000000000000000000000000000000000000000000000000000002",
-    ];
-
-    const tx = await execute(commands, state);
-    await expect(tx)
-      .to.emit(eventsContract, "LogUint")
-      .withArgs(
-        "0x0000000000000000000000000000000000000000000000000000000000000003"
-      );
-
-    const receipt = await tx.wait();
-    console.log(`State passing: ${receipt.gasUsed.toNumber()} gas`);
-  });
-
-  it("Should perform a ERC20 transfer", async () => {
-    let amount = supply.div(10);
-    let to = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
-
-    /* transfer some balance to executor */
-    let ttx = await token.transfer(vm.address, amount.mul(3));
-    /* ensure that transfer was successful */
-    await expect(ttx)
-      .to.emit(token, "Transfer")
-      .withArgs(to, vm.address, amount.mul(3));
-
-    const commands = [[token, "transfer", "0x010001ffffffff", "0xff"]];
-    const state = [
-      // dest slot index
-      "0x000000000000000000000000" + to.slice(2),
-      // amt slot index
-      ethers.utils.hexZeroPad("0x01", 32),
-      // ret slot index
-      "0x0000000000000000000000000000000000000000000000000000000000000000",
-    ];
-
-    const tx = await execute(commands, state);
-    await expect(tx).to.emit(token, "Transfer").withArgs(vm.address, to, "0x1");
-
-    const receipt = await tx.wait();
-    console.log(`Direct ERC20 transfer: ${receipt.gasUsed.toNumber()} gas`);
   });
 
   it("Should propagate revert reasons", async () => {
@@ -788,11 +547,44 @@ describe("VM", function () {
 
     const tx = await vm.execute(commands, state);
     await expect(tx)
-      .to.emit(eventsContract, "LogUint")
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
       .withArgs(528);
   });
 
-  it("Should accept 31 inputs + value", async () => {
+  it("Should accept 31 inputs + value: tx with value + payable event", async () => {
+    const amount = ethers.constants.WeiPerEther.mul(123);
+    const planner = new weiroll.Planner();
+    const result = planner.add(params.param31(
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+    ).withValue(amount));
+    planner.add(events.logUintPayable(result));
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state, { value: amount });
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(496);
+  });
+
+  it("Should accept 31 inputs + value: tx without value + nonpayable event", async () => {
+    const amount = ethers.constants.WeiPerEther.mul(123);
+    const [caller] = await ethers.getSigners();
+    await caller.sendTransaction({ to: vm.address, value: amount });
+
+    const planner = new weiroll.Planner();
+    const result = planner.add(params.param31(
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+    ).withValue(amount));
+    planner.add(events.logUint(result));
+    const { commands, state } = planner.plan();
+
+    const tx = await vm.execute(commands, state);
+    await expect(tx)
+      .to.emit(eventsContract.attach(vm.address), "LogUint")
+      .withArgs(496);
+  });
+
+  it("Should fail to accept 31 inputs + value: tx with value + nonpayable event", async () => {
     const amount = ethers.constants.WeiPerEther.mul(123);
     const planner = new weiroll.Planner();
     const result = planner.add(params.param31(
@@ -801,9 +593,7 @@ describe("VM", function () {
     planner.add(events.logUint(result));
     const { commands, state } = planner.plan();
 
-    const tx = await vm.execute(commands, state, { value: amount });
-    await expect(tx)
-      .to.emit(eventsContract, "LogUint")
-      .withArgs(496);
+    await expect(vm.execute(commands, state, { value: amount }))
+      .to.be.revertedWith('ExecutionFailed(2, "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853", "Unknown")');
   });
 });
